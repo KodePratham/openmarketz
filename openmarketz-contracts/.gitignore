@@ -1,0 +1,18 @@
+# Dependencies
+/node_modules/
+
+# Contract tool outputs
+/artifacts/
+/cache/
+/out/
+/broadcast/
+/typechain-types/
+/coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log

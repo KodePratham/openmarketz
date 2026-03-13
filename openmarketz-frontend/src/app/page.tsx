@@ -1,64 +1,166 @@
-import Image from "next/image";
+"use client";
+
+import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
+import { useRef, useState } from "react";
+import EthereumProvider from "@walletconnect/ethereum-provider";
+
+const CODE_LENGTH = 10;
 
 export default function Home() {
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [codeDigits, setCodeDigits] = useState<string[]>(Array.from({ length: CODE_LENGTH }, () => ""));
+  const providerRef = useRef<Awaited<ReturnType<typeof EthereumProvider.init>> | null>(null);
+  const digitRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const getProvider = async () => {
+    if (providerRef.current) {
+      return providerRef.current;
+    }
+
+    const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+    if (!projectId) {
+      throw new Error("Missing NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID");
+    }
+
+    const provider = await EthereumProvider.init({
+      projectId,
+      chains: [1],
+      showQrModal: true,
+      methods: ["eth_sendTransaction", "personal_sign", "eth_signTypedData", "eth_signTypedData_v4"],
+    });
+
+    provider.on("accountsChanged", (accounts: string[]) => {
+      setWalletAddress(accounts[0] ?? null);
+    });
+
+    provider.on("disconnect", () => {
+      setWalletAddress(null);
+    });
+
+    providerRef.current = provider;
+    return provider;
+  };
+
+  const handleConnectWallet = async () => {
+    try {
+      setIsConnecting(true);
+      const provider = await getProvider();
+      await provider.connect();
+      const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+      setWalletAddress(accounts[0] ?? null);
+    } catch (error) {
+      console.error("WalletConnect connection failed", error);
+      alert("Wallet connection failed. Please set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID and try again.");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const walletLabel = walletAddress
+    ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+    : isConnecting
+      ? "Connecting..."
+      : "Connect Wallet";
+
+  const handleDigitChange = (index: number, event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value.replace(/\D/g, "");
+    if (!nextValue) {
+      const updatedDigits = [...codeDigits];
+      updatedDigits[index] = "";
+      setCodeDigits(updatedDigits);
+      return;
+    }
+
+    const updatedDigits = [...codeDigits];
+    let writeAt = index;
+
+    for (const char of nextValue.slice(0, CODE_LENGTH - index)) {
+      updatedDigits[writeAt] = char;
+      writeAt += 1;
+    }
+
+    setCodeDigits(updatedDigits);
+
+    if (writeAt < CODE_LENGTH) {
+      digitRefs.current[writeAt]?.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Backspace" && !codeDigits[index] && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    }
+
+    if (event.key === "ArrowLeft" && index > 0) {
+      event.preventDefault();
+      digitRefs.current[index - 1]?.focus();
+    }
+
+    if (event.key === "ArrowRight" && index < CODE_LENGTH - 1) {
+      event.preventDefault();
+      digitRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDigitPaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    const pastedDigits = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH).split("");
+    if (!pastedDigits.length) {
+      return;
+    }
+
+    const updatedDigits = Array.from({ length: CODE_LENGTH }, (_, idx) => pastedDigits[idx] ?? "");
+    setCodeDigits(updatedDigits);
+    digitRefs.current[Math.min(pastedDigits.length, CODE_LENGTH) - 1]?.focus();
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="relative min-h-screen w-full bg-[#f4f4f0] text-black font-sans selection:bg-[#836ef9]/30">
+      <header className="relative z-10 flex w-full items-center justify-between border-b-[3px] border-black bg-white px-6 py-6 md:px-12">
+        <p className="text-2xl font-black tracking-tight text-black">openmarketz.xyz</p>
+        <button
+          type="button"
+          onClick={handleConnectWallet}
+          disabled={isConnecting}
+          className="rounded-xl border-[3px] border-black bg-[#836ef9] px-6 py-3 text-base font-black text-black shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-transform hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_rgba(0,0,0,1)]"
+        >
+          {walletLabel}
+        </button>
+      </header>
+
+      <main className="relative z-10 flex min-h-[calc(100vh-96px)] items-center justify-center px-6 pb-14">
+        <section className="w-full max-w-4xl rounded-2xl border-[3px] border-black bg-white p-8 shadow-[8px_8px_0px_rgba(0,0,0,1)] md:p-12">
+          <p className="mb-8 text-center text-base font-black tracking-[0.2em] text-black uppercase">Market Access</p>
+
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-center md:gap-6">
+            <span className="flex h-16 shrink-0 items-center justify-center rounded-xl border-[3px] border-black bg-[#836ef9] px-8 text-xl font-black tracking-widest text-black shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+              OPEN
+            </span>
+
+            <div className="grid grid-cols-5 gap-3 sm:grid-cols-10 md:gap-3 w-full max-w-2xl">
+              {codeDigits.map((digit, idx) => (
+                <input
+                  key={idx}
+                  ref={(element) => {
+                    digitRefs.current[idx] = element;
+                  }}
+                  aria-label={`Code digit ${idx + 1}`}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
+                  value={digit}
+                  onChange={(event) => handleDigitChange(idx, event)}
+                  onKeyDown={(event) => handleDigitKeyDown(idx, event)}
+                  onPaste={handleDigitPaste}
+                  className="h-16 w-full rounded-xl border-[3px] border-black bg-white text-center text-3xl font-black text-black shadow-[4px_4px_0px_rgba(0,0,0,1)] outline-none transition-transform focus:translate-x-[2px] focus:translate-y-[2px] focus:bg-[#f0e6ff] focus:shadow-[2px_2px_0px_rgba(0,0,0,1)]"
+                />
+              ))}
+            </div>
+          </div>
+
+          <p className="mt-10 text-center text-lg font-bold text-black">Enter your 10-digit market code to continue.</p>
+        </section>
       </main>
     </div>
   );
