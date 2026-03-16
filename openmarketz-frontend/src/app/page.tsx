@@ -1,10 +1,42 @@
 "use client";
 
+import {
+  BrowserProvider,
+  Contract,
+  JsonRpcProvider,
+  isAddress,
+  formatEther,
+  parseEther,
+  ZeroAddress,
+  keccak256,
+  toUtf8Bytes,
+} from "ethers";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import EthereumProvider from "@walletconnect/ethereum-provider";
+import {
+  getInAppNativeBalance,
+  getOrCreateInAppWallet,
+  signInAppTypedData,
+  sendInAppTransfer,
+} from "../lib/temp-wallet/inAppWallet";
+import { binaryMarketAbi, marketFactoryAbi } from "../lib/market/abi";
 
 const CODE_LENGTH = 10;
+const MONAD_CHAIN_ID = 10143;
+const MONAD_CHAIN_ID_HEX = "0x279f";
+const MONAD_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz";
+const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS ?? "0xD2Dac9f3379F3936d1B69038c6C236Fd9f3d2c9b";
+const MARKET_FACTORY_ADDRESS = process.env.NEXT_PUBLIC_MARKET_FACTORY_ADDRESS ?? "";
+
+const vaultAbi = [
+  "function deposit() payable",
+  "function withdraw(uint256 amount)",
+  "function getBalance(address user) view returns (uint256)",
+  "function getLockedBalance(address user) view returns (uint256)",
+  "function getMinDepositAmount() view returns (uint256)",
+  "function getVaultTotalHoldings() view returns (uint256)",
+] as const;
 
 type Eip1193Provider = {
   isMetaMask?: boolean;
@@ -18,13 +50,117 @@ type EthereumWindow = Window & {
   ethereum?: Eip1193Provider;
 };
 
+type WalletConnectProvider = Awaited<ReturnType<typeof EthereumProvider.init>>;
+
+type CreatedMarket = {
+  address: string;
+  code: string;
+};
+
+type SelectedMarket = {
+  address: string;
+  code: string;
+  creator: string;
+  question: string;
+  oracleDescription: string;
+  links: string[];
+  totalYesStake: string;
+  totalNoStake: string;
+  state: number;
+  winningYes: boolean;
+};
+
+const hasRequestMethod = (value: unknown): value is Eip1193Provider => {
+  return Boolean(value && typeof (value as Eip1193Provider).request === "function");
+};
+
+const hasWalletConnectSession = (provider: WalletConnectProvider) => {
+  return Boolean(provider.connected || provider.session);
+};
+
+const getWalletConnectAccounts = (provider: WalletConnectProvider): string[] => {
+  if (Array.isArray(provider.accounts) && provider.accounts.length > 0) {
+    return provider.accounts.filter((account): account is string => typeof account === "string");
+  }
+
+  const namespaces = provider.session?.namespaces;
+  if (!namespaces) {
+    return [];
+  }
+
+  const accounts = Object.values(namespaces)
+    .flatMap((namespace) => namespace.accounts ?? [])
+    .map((entry) => (typeof entry === "string" ? entry.split(":").pop() ?? "" : ""))
+    .filter((entry): entry is string => Boolean(entry));
+
+  return accounts;
+};
+
+const normalizeChainId = (chainId: unknown): string => {
+  if (typeof chainId === "string") {
+    const trimmed = chainId.trim();
+    if (trimmed.toLowerCase().startsWith("0x")) {
+      return trimmed.toLowerCase();
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      return `0x${BigInt(trimmed).toString(16)}`;
+    }
+
+    return "";
+  }
+
+  if (typeof chainId === "number") {
+    if (Number.isFinite(chainId) && chainId >= 0) {
+      return `0x${Math.trunc(chainId).toString(16)}`;
+    }
+    return "";
+  }
+
+  if (typeof chainId === "bigint") {
+    return `0x${chainId.toString(16)}`;
+  }
+
+  return "";
+};
+
 export default function Home() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [externalWalletSource, setExternalWalletSource] = useState<"metamask" | "walletconnect" | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionStep, setConnectionStep] = useState<"idle" | "metamask" | "walletconnect">("idle");
+  const [inAppWalletAddress, setInAppWalletAddress] = useState<string | null>(null);
+  const [inAppWalletBalance, setInAppWalletBalance] = useState("0.0");
+  const [inAppWalletMessage, setInAppWalletMessage] = useState<string | null>(null);
+  const [inAppWalletError, setInAppWalletError] = useState<string | null>(null);
+  const [transferRecipient, setTransferRecipient] = useState("");
+  const [transferAmount, setTransferAmount] = useState("0.001");
+  const [isTransferBusy, setIsTransferBusy] = useState(false);
+
+  const [depositAmount, setDepositAmount] = useState("0.01");
+  const [withdrawAmount, setWithdrawAmount] = useState("0.005");
+  const [vaultFreeBalance, setVaultFreeBalance] = useState("0.0");
+  const [vaultLockedBalance, setVaultLockedBalance] = useState("0.0");
+  const [vaultHoldings, setVaultHoldings] = useState("0.0");
+  const [minDeposit, setMinDeposit] = useState("0.0");
+  const [isVaultBusy, setIsVaultBusy] = useState(false);
+  const [vaultMessage, setVaultMessage] = useState<string | null>(null);
+  const [vaultError, setVaultError] = useState<string | null>(null);
+
   const [codeDigits, setCodeDigits] = useState<string[]>(Array.from({ length: CODE_LENGTH }, () => ""));
-  const providerRef = useRef<Awaited<ReturnType<typeof EthereumProvider.init>> | null>(null);
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const [marketMessage, setMarketMessage] = useState<string | null>(null);
+  const [isMarketBusy, setIsMarketBusy] = useState(false);
+  const [createdMarkets, setCreatedMarkets] = useState<CreatedMarket[]>([]);
+  const [selectedMarket, setSelectedMarket] = useState<SelectedMarket | null>(null);
+  const [createQuestion, setCreateQuestion] = useState("");
+  const [createOracleDescription, setCreateOracleDescription] = useState("");
+  const [createLinks, setCreateLinks] = useState<string[]>([""]);
+  const [createYesSeed, setCreateYesSeed] = useState("2");
+  const [createNoSeed, setCreateNoSeed] = useState("2");
+  const [tradeAmount, setTradeAmount] = useState("0.1");
+  const providerRef = useRef<WalletConnectProvider | null>(null);
   const injectedProviderRef = useRef<Eip1193Provider | null>(null);
   const digitRefs = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -36,14 +172,180 @@ export default function Home() {
   const handleAccountChange = (accounts: unknown) => {
     if (Array.isArray(accounts) && typeof accounts[0] === "string") {
       setWalletAddress(accounts[0] ?? null);
+      setExternalWalletSource("metamask");
       return;
     }
 
     setWalletAddress(null);
+    setExternalWalletSource(null);
+    setInAppWalletAddress(null);
+    setInAppWalletBalance("0.0");
+    setVaultFreeBalance("0.0");
+    setVaultLockedBalance("0.0");
   };
 
   const handleDisconnect = () => {
     setWalletAddress(null);
+    setExternalWalletSource(null);
+    setInAppWalletAddress(null);
+    setInAppWalletBalance("0.0");
+    setVaultFreeBalance("0.0");
+    setVaultLockedBalance("0.0");
+  };
+
+  const refreshInAppWalletData = async (mainWallet: string) => {
+    const inApp = getOrCreateInAppWallet(mainWallet);
+    setInAppWalletAddress(inApp.address);
+
+    const nativeBalanceRaw = await getInAppNativeBalance({
+      inAppAddress: inApp.address,
+      chainId: MONAD_CHAIN_ID,
+      rpcUrl: MONAD_RPC_URL,
+    });
+
+    setInAppWalletBalance(formatEther(nativeBalanceRaw));
+    if (inApp.created) {
+      setInAppWalletMessage("In-app wallet linked to your main wallet.");
+    }
+  };
+
+  const ensureMonadNetwork = async (provider: Eip1193Provider) => {
+    const currentChain = await provider.request({ method: "eth_chainId" });
+    if (normalizeChainId(currentChain) === MONAD_CHAIN_ID_HEX) {
+      return;
+    }
+
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: MONAD_CHAIN_ID_HEX }],
+      });
+    } catch (switchError) {
+      const code = Number((switchError as { code?: number | string })?.code);
+      if (code !== 4902) {
+        throw switchError;
+      }
+
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: MONAD_CHAIN_ID_HEX,
+            chainName: "Monad Testnet",
+            nativeCurrency: {
+              name: "MON",
+              symbol: "MON",
+              decimals: 18,
+            },
+            rpcUrls: [MONAD_RPC_URL],
+            blockExplorerUrls: ["https://testnet.monadexplorer.com"],
+          },
+        ],
+      });
+    }
+  };
+
+  const getVaultReader = () => {
+    const provider = new JsonRpcProvider(MONAD_RPC_URL, MONAD_CHAIN_ID);
+    return new Contract(VAULT_ADDRESS, vaultAbi, provider);
+  };
+
+  const getFactoryReader = () => {
+    const provider = new JsonRpcProvider(MONAD_RPC_URL, MONAD_CHAIN_ID);
+    return new Contract(MARKET_FACTORY_ADDRESS, marketFactoryAbi, provider);
+  };
+
+  const getMarketReader = (marketAddress: string) => {
+    const provider = new JsonRpcProvider(MONAD_RPC_URL, MONAD_CHAIN_ID);
+    return new Contract(marketAddress, binaryMarketAbi, provider);
+  };
+
+  const hydrateMarketSnapshot = async (marketAddress: string): Promise<SelectedMarket> => {
+    const market = getMarketReader(marketAddress);
+    const factory = getFactoryReader();
+
+    const [code, creator, question, oracleDescription, links, yesStake, noStake, state, winningYes] = await Promise.all([
+      market.marketCode(),
+      market.creator(),
+      market.marketQuestion(),
+      market.oracleDescription(),
+      factory.getMarketOracleLinks(marketAddress),
+      market.totalYesStake(),
+      market.totalNoStake(),
+      market.marketState(),
+      market.winningYes(),
+    ]);
+
+    return {
+      address: marketAddress,
+      code,
+      creator,
+      question,
+      oracleDescription,
+      links,
+      totalYesStake: formatEther(yesStake),
+      totalNoStake: formatEther(noStake),
+      state: Number(state),
+      winningYes,
+    };
+  };
+
+  const refreshCreatorMarkets = async (creatorAddress: string) => {
+    if (!isAddress(MARKET_FACTORY_ADDRESS)) {
+      return;
+    }
+
+    const factory = getFactoryReader();
+    const addresses = (await factory.getCreatorMarkets(creatorAddress)) as string[];
+
+    if (!addresses.length) {
+      setCreatedMarkets([]);
+      return;
+    }
+
+    const codes = (await Promise.all(addresses.map((marketAddress) => factory.getMarketCode(marketAddress)))) as string[];
+    setCreatedMarkets(addresses.map((address, idx) => ({ address, code: codes[idx] })));
+  };
+
+  const refreshVaultData = async () => {
+    if (!walletAddress || !isAddress(VAULT_ADDRESS)) {
+      return;
+    }
+
+    const vault = getVaultReader();
+    const [freeBalanceRaw, lockedBalanceRaw, minDepositRaw, holdingsRaw] = await Promise.all([
+      vault.getBalance(walletAddress),
+      vault.getLockedBalance(walletAddress),
+      vault.getMinDepositAmount(),
+      vault.getVaultTotalHoldings(),
+    ]);
+
+    setVaultFreeBalance(formatEther(freeBalanceRaw));
+    setVaultLockedBalance(formatEther(lockedBalanceRaw));
+    setMinDeposit(formatEther(minDepositRaw));
+    setVaultHoldings(formatEther(holdingsRaw));
+  };
+
+  const getActiveSigner = async () => {
+    if (externalWalletSource === "walletconnect") {
+      const walletConnectProvider = providerRef.current;
+      if (!walletConnectProvider || !hasWalletConnectSession(walletConnectProvider)) {
+        throw new Error("WalletConnect session is not active. Reconnect your wallet.");
+      }
+
+      await ensureMonadNetwork(walletConnectProvider as unknown as Eip1193Provider);
+      const browserProvider = new BrowserProvider(walletConnectProvider as unknown as Eip1193Provider);
+      return browserProvider.getSigner();
+    }
+
+    const injected = getMetaMaskProvider();
+    if (!injected) {
+      throw new Error("No wallet connected. Connect MetaMask or WalletConnect first.");
+    }
+
+    await ensureMonadNetwork(injected);
+    const browserProvider = new BrowserProvider(injected);
+    return browserProvider.getSigner();
   };
 
   const getMetaMaskProvider = () => {
@@ -53,13 +355,14 @@ export default function Home() {
 
     const maybeWindow = window as EthereumWindow;
     const injected = maybeWindow.ethereum;
-    if (!injected) {
+    if (!hasRequestMethod(injected)) {
       return null;
     }
 
     if (Array.isArray(injected.providers) && injected.providers.length > 0) {
-      const metaMaskProvider = injected.providers.find((provider) => provider?.isMetaMask);
-      return metaMaskProvider ?? injected.providers[0] ?? null;
+      const availableProviders = injected.providers.filter(hasRequestMethod);
+      const metaMaskProvider = availableProviders.find((provider) => provider?.isMetaMask);
+      return metaMaskProvider ?? availableProviders[0] ?? null;
     }
 
     return injected;
@@ -92,6 +395,7 @@ export default function Home() {
 
           if (accounts[0]) {
             setWalletAddress(accounts[0]);
+            setExternalWalletSource("metamask");
             setConnectionError(null);
             return;
           }
@@ -106,17 +410,30 @@ export default function Home() {
 
       try {
         const provider = await getProvider();
-        const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+        if (!hasWalletConnectSession(provider)) {
+          return;
+        }
+
+        const accounts = getWalletConnectAccounts(provider);
         if (!isMounted) {
           return;
         }
 
         if (accounts[0]) {
           setWalletAddress(accounts[0]);
+          setExternalWalletSource("walletconnect");
           setConnectionError(null);
         }
       } catch (walletConnectError) {
         console.warn("Unable to restore WalletConnect session", walletConnectError);
+        const provider = providerRef.current;
+        if (provider && typeof provider.disconnect === "function") {
+          try {
+            await provider.disconnect();
+          } catch (disconnectError) {
+            console.warn("Could not clear stale WalletConnect session", disconnectError);
+          }
+        }
       }
     };
 
@@ -144,7 +461,10 @@ export default function Home() {
 
     const provider = await EthereumProvider.init({
       projectId,
-      chains: [1],
+      chains: [MONAD_CHAIN_ID],
+      rpcMap: {
+        [MONAD_CHAIN_ID]: MONAD_RPC_URL,
+      },
       showQrModal: true,
       methods: ["eth_sendTransaction", "personal_sign", "eth_signTypedData", "eth_signTypedData_v4"],
       metadata: {
@@ -157,11 +477,15 @@ export default function Home() {
 
     provider.on("accountsChanged", (accounts: string[]) => {
       setWalletAddress(accounts[0] ?? null);
+      if (accounts[0]) {
+        setExternalWalletSource("walletconnect");
+      }
       setConnectionError(null);
     });
 
     provider.on("disconnect", () => {
       setWalletAddress(null);
+      setExternalWalletSource((current) => (current === "walletconnect" ? null : current));
     });
 
     providerRef.current = provider;
@@ -177,10 +501,12 @@ export default function Home() {
       const injected = getMetaMaskProvider();
       if (injected?.isMetaMask) {
         try {
+          await ensureMonadNetwork(injected);
           const accounts = (await injected.request({ method: "eth_requestAccounts" })) as string[];
           attachInjectedListeners(injected);
           injectedProviderRef.current = injected;
           setWalletAddress(accounts[0] ?? null);
+          setExternalWalletSource("metamask");
           return;
         } catch (metaMaskError) {
           if ((metaMaskError as { code?: number })?.code === 4001) {
@@ -199,8 +525,22 @@ export default function Home() {
       setConnectionStep("walletconnect");
       const provider = await getProvider();
       await provider.connect();
-      const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+
+      let accounts = getWalletConnectAccounts(provider);
+      if (!accounts[0] && typeof provider.enable === "function") {
+        accounts = (await provider.enable()) as string[];
+      }
+
+      if (!accounts[0] && typeof provider.request === "function") {
+        accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
+      }
+
+      if (!accounts[0]) {
+        throw new Error("WalletConnect did not return an account.");
+      }
+
       setWalletAddress(accounts[0] ?? null);
+      setExternalWalletSource("walletconnect");
     } catch (error) {
       console.error("Wallet connection failed", error);
       if ((error as { code?: number })?.code === 4001) {
@@ -229,6 +569,137 @@ export default function Home() {
         ? "Connecting MetaMask..."
         : "Connecting Wallet..."
       : "Connect Wallet";
+
+  const handleRefreshVault = async () => {
+    try {
+      setVaultError(null);
+      await refreshVaultData();
+      if (walletAddress) {
+        await refreshInAppWalletData(walletAddress);
+      }
+      setVaultMessage("Vault data refreshed.");
+    } catch (error) {
+      console.error("Vault refresh failed", error);
+      setVaultError("Could not load vault balances. Verify RPC and contract address.");
+    }
+  };
+
+  const handleDeposit = async () => {
+    try {
+      setIsVaultBusy(true);
+      setVaultError(null);
+      setVaultMessage(null);
+
+      const signer = await getActiveSigner();
+      const contract = new Contract(VAULT_ADDRESS, vaultAbi, signer);
+      const value = parseEther(depositAmount);
+      const minDepositRaw = await contract.getMinDepositAmount();
+
+      if (value < minDepositRaw) {
+        setVaultError(`Deposit must be at least ${formatEther(minDepositRaw)} MON.`);
+        return;
+      }
+
+      const tx = await contract.deposit({ value });
+      await tx.wait();
+
+      await handleRefreshVault();
+      setVaultMessage(`Deposit confirmed: ${depositAmount} MON.`);
+    } catch (error) {
+      console.error("Deposit failed", error);
+      setVaultError("Deposit transaction failed or was rejected.");
+    } finally {
+      setIsVaultBusy(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    try {
+      setIsVaultBusy(true);
+      setVaultError(null);
+      setVaultMessage(null);
+
+      const signer = await getActiveSigner();
+      const contract = new Contract(VAULT_ADDRESS, vaultAbi, signer);
+      const amount = parseEther(withdrawAmount);
+      const tx = await contract.withdraw(amount);
+      await tx.wait();
+
+      await handleRefreshVault();
+      setVaultMessage(`Withdraw confirmed: ${withdrawAmount} MON.`);
+    } catch (error) {
+      console.error("Withdraw failed", error);
+      setVaultError("Withdraw transaction failed or was rejected.");
+    } finally {
+      setIsVaultBusy(false);
+    }
+  };
+
+  const handleInAppTransfer = async () => {
+    if (!walletAddress) {
+      setInAppWalletError("Connect your main wallet first.");
+      return;
+    }
+
+    try {
+      setIsTransferBusy(true);
+      setInAppWalletError(null);
+      setInAppWalletMessage(null);
+
+      const txHash = await sendInAppTransfer({
+        primaryAddress: walletAddress,
+        to: transferRecipient,
+        valueWei: parseEther(transferAmount),
+        chainId: MONAD_CHAIN_ID,
+        rpcUrl: MONAD_RPC_URL,
+      });
+
+      await refreshInAppWalletData(walletAddress);
+      setInAppWalletMessage(`In-app transfer confirmed: ${txHash.slice(0, 12)}...`);
+    } catch (error) {
+      console.error("In-app transfer failed", error);
+      setInAppWalletError((error as Error)?.message ?? "In-app transfer failed.");
+    } finally {
+      setIsTransferBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAddress(VAULT_ADDRESS)) {
+      setVaultError("Invalid NEXT_PUBLIC_VAULT_ADDRESS value.");
+      return;
+    }
+
+    if (!walletAddress) {
+      return;
+    }
+
+    void handleRefreshVault();
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (!walletAddress) {
+      return;
+    }
+
+    setInAppWalletError(null);
+    void refreshInAppWalletData(walletAddress).catch((error) => {
+      console.error("In-app wallet setup failed", error);
+      setInAppWalletError("Could not initialize in-app wallet.");
+    });
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (!inAppWalletAddress || !isAddress(MARKET_FACTORY_ADDRESS)) {
+      setCreatedMarkets([]);
+      return;
+    }
+
+    void refreshCreatorMarkets(inAppWalletAddress).catch((error) => {
+      console.error("Could not load creator markets", error);
+      setMarketError("Could not load your created markets.");
+    });
+  }, [inAppWalletAddress]);
 
   const handleDigitChange = (index: number, event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.target.value.replace(/\D/g, "");
@@ -282,16 +753,399 @@ export default function Home() {
     digitRefs.current[Math.min(pastedDigits.length, CODE_LENGTH) - 1]?.focus();
   };
 
+  const handleAccessByCode = async (codeOverride?: string) => {
+    if (!isAddress(MARKET_FACTORY_ADDRESS)) {
+      setMarketError("Set NEXT_PUBLIC_MARKET_FACTORY_ADDRESS to access markets.");
+      return;
+    }
+
+    const normalizedCode = codeOverride ?? `OPEN${codeDigits.join("")}`;
+    if (!/^OPEN\d{10}$/.test(normalizedCode)) {
+      setMarketError("Enter a full OPEN 10-digit code before accessing the market.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      setMarketMessage(null);
+      const factory = getFactoryReader();
+      const marketAddress = (await factory.getMarketByCode(normalizedCode)) as string;
+
+      if (!marketAddress || marketAddress === ZeroAddress) {
+        setMarketError("Market code not found.");
+        setSelectedMarket(null);
+        return;
+      }
+
+      const snapshot = await hydrateMarketSnapshot(marketAddress);
+      setSelectedMarket(snapshot);
+      setMarketMessage(`Loaded market ${snapshot.code}.`);
+    } catch (error) {
+      console.error("Market lookup failed", error);
+      setMarketError("Could not load market by code.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleCreateLinkChange = (index: number, value: string) => {
+    const next = [...createLinks];
+    next[index] = value;
+    setCreateLinks(next);
+  };
+
+  const addOracleLinkField = () => {
+    if (createLinks.length >= 5) {
+      return;
+    }
+    setCreateLinks((current) => [...current, ""]);
+  };
+
+  const removeOracleLinkField = (index: number) => {
+    setCreateLinks((current) => current.filter((_, idx) => idx !== index));
+  };
+
+  const handleCreateMarket = async () => {
+    if (!walletAddress || !inAppWalletAddress) {
+      setMarketError("Connect your wallet to create a market.");
+      return;
+    }
+
+    if (!isAddress(MARKET_FACTORY_ADDRESS)) {
+      setMarketError("Set NEXT_PUBLIC_MARKET_FACTORY_ADDRESS before creating markets.");
+      return;
+    }
+
+    const yesSeed = Number(createYesSeed);
+    const noSeed = Number(createNoSeed);
+    const links = createLinks.map((link) => link.trim()).filter(Boolean);
+
+    if (!createQuestion.trim() || createQuestion.length > 300) {
+      setMarketError("Question is required and must be under 300 characters.");
+      return;
+    }
+
+    if (!createOracleDescription.trim() || createOracleDescription.length > 1000) {
+      setMarketError("Oracle description is required and must be under 1000 characters.");
+      return;
+    }
+
+    if (links.length > 5) {
+      setMarketError("You can provide up to 5 oracle links.");
+      return;
+    }
+
+    if (Number.isNaN(yesSeed) || Number.isNaN(noSeed) || yesSeed < 2 || noSeed < 2 || yesSeed + noSeed < 4) {
+      setMarketError("Seed liquidity must be at least 2 MON on YES, 2 MON on NO, and 4 MON total.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      setMarketMessage(null);
+
+      const factory = getFactoryReader();
+      const nonce = await factory.nonces(inAppWalletAddress);
+      const yesSeedWei = parseEther(createYesSeed);
+      const noSeedWei = parseEther(createNoSeed);
+      const linksHash = await factory.hashLinks(links);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzMarketFactory",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: MARKET_FACTORY_ADDRESS,
+        },
+        types: {
+          CreateMarket: [
+            { name: "creator", type: "address" },
+            { name: "yesSeed", type: "uint256" },
+            { name: "noSeed", type: "uint256" },
+            { name: "questionHash", type: "bytes32" },
+            { name: "oracleDescriptionHash", type: "bytes32" },
+            { name: "linksHash", type: "bytes32" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          creator: inAppWalletAddress,
+          yesSeed: yesSeedWei,
+          noSeed: noSeedWei,
+          questionHash: keccak256(toUtf8Bytes(createQuestion)),
+          oracleDescriptionHash: keccak256(toUtf8Bytes(createOracleDescription)),
+          linksHash,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          req: {
+            creator: inAppWalletAddress,
+            yesSeed: yesSeedWei.toString(),
+            noSeed: noSeedWei.toString(),
+            question: createQuestion,
+            oracleDescription: createOracleDescription,
+            linksHash,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          links,
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string; code?: string; market?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Market creation failed.");
+      }
+
+      setMarketMessage(`Market created: ${payload.code}`);
+      setCodeDigits((payload.code?.replace("OPEN", "").split("") ?? Array.from({ length: CODE_LENGTH }, () => "")) as string[]);
+      setCreateQuestion("");
+      setCreateOracleDescription("");
+      setCreateLinks([""]);
+      await refreshCreatorMarkets(inAppWalletAddress);
+      if (payload.market) {
+        const snapshot = await hydrateMarketSnapshot(payload.market);
+        setSelectedMarket(snapshot);
+      }
+    } catch (error) {
+      console.error("Create market failed", error);
+      setMarketError((error as Error)?.message ?? "Could not create market.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleTrade = async (isYes: boolean) => {
+    if (!walletAddress || !inAppWalletAddress || !selectedMarket) {
+      setMarketError("Connect your wallet and load a market before trading.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      const market = getMarketReader(selectedMarket.address);
+      const nonce = await market.nonces(inAppWalletAddress);
+      const amountWei = parseEther(tradeAmount);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzBinaryMarket",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: selectedMarket.address,
+        },
+        types: {
+          Trade: [
+            { name: "trader", type: "address" },
+            { name: "isYes", type: "bool" },
+            { name: "amount", type: "uint256" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          trader: inAppWalletAddress,
+          isYes,
+          amount: amountWei,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketAddress: selectedMarket.address,
+          req: {
+            trader: inAppWalletAddress,
+            isYes,
+            amount: amountWei.toString(),
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Trade failed.");
+      }
+
+      setMarketMessage(`Trade submitted on ${isYes ? "YES" : "NO"}.`);
+      const snapshot = await hydrateMarketSnapshot(selectedMarket.address);
+      setSelectedMarket(snapshot);
+      await handleRefreshVault();
+    } catch (error) {
+      console.error("Trade failed", error);
+      setMarketError((error as Error)?.message ?? "Trade failed.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleResolve = async (yesWins: boolean) => {
+    if (!walletAddress || !inAppWalletAddress || !selectedMarket) {
+      setMarketError("Connect your wallet and load a market first.");
+      return;
+    }
+
+    if (selectedMarket.creator.toLowerCase() !== inAppWalletAddress.toLowerCase()) {
+      setMarketError("Only the market creator can resolve this market.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      const market = getMarketReader(selectedMarket.address);
+      const nonce = await market.nonces(inAppWalletAddress);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzBinaryMarket",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: selectedMarket.address,
+        },
+        types: {
+          Resolve: [
+            { name: "yesWins", type: "bool" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          yesWins,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketAddress: selectedMarket.address,
+          req: {
+            yesWins,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Resolve failed.");
+      }
+
+      setMarketMessage(`Market resolved: ${yesWins ? "YES" : "NO"} wins.`);
+      const snapshot = await hydrateMarketSnapshot(selectedMarket.address);
+      setSelectedMarket(snapshot);
+    } catch (error) {
+      console.error("Resolve failed", error);
+      setMarketError((error as Error)?.message ?? "Resolve failed.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleClaim = async () => {
+    if (!walletAddress || !inAppWalletAddress || !selectedMarket) {
+      setMarketError("Connect your wallet and load a market first.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      const market = getMarketReader(selectedMarket.address);
+      const nonce = await market.nonces(inAppWalletAddress);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzBinaryMarket",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: selectedMarket.address,
+        },
+        types: {
+          Claim: [
+            { name: "claimant", type: "address" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          claimant: inAppWalletAddress,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketAddress: selectedMarket.address,
+          req: {
+            claimant: inAppWalletAddress,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Claim failed.");
+      }
+
+      setMarketMessage("Claim completed.");
+      const snapshot = await hydrateMarketSnapshot(selectedMarket.address);
+      setSelectedMarket(snapshot);
+      await handleRefreshVault();
+    } catch (error) {
+      console.error("Claim failed", error);
+      setMarketError((error as Error)?.message ?? "Claim failed.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
   return (
-    <div className="relative min-h-screen w-full bg-[#f4f4f0] text-black font-sans selection:bg-[#836ef9]/30">
-      <header className="relative z-10 flex w-full items-center justify-between border-b-[3px] border-black bg-white px-6 py-6 md:px-12">
+    <div className="relative min-h-screen w-full bg-[#f5f0e8] text-black font-sans selection:bg-[#ed7d31]/30">
+      <header className="relative z-10 flex w-full items-center justify-between border-b-[3px] border-black bg-[#fdf8f0] px-6 py-6 md:px-12">
         <p className="text-2xl font-black tracking-tight text-black">openmarketz.xyz</p>
         <div className="flex flex-col items-end gap-2">
           <button
             type="button"
             onClick={handleConnectWallet}
             disabled={isConnecting}
-            className="rounded-xl border-[3px] border-black bg-[#836ef9] px-6 py-3 text-base font-black text-black shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-transform hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_rgba(0,0,0,1)]"
+            className="rounded-xl border-[3px] border-black bg-[#ed7d31] px-6 py-3 text-base font-black text-black shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-transform hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_rgba(0,0,0,1)]"
           >
             {walletLabel}
           </button>
@@ -299,12 +1153,12 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="relative z-10 flex min-h-[calc(100vh-96px)] items-center justify-center px-6 pb-14">
-        <section className="w-full max-w-4xl rounded-2xl border-[3px] border-black bg-white p-8 shadow-[8px_8px_0px_rgba(0,0,0,1)] md:p-12">
+      <main className="relative z-10 flex min-h-[calc(100vh-96px)] items-start justify-center px-6 pb-14 pt-10">
+        <section className="w-full max-w-6xl rounded-2xl border-[3px] border-black bg-[#fffdfa] p-8 shadow-[8px_8px_0px_rgba(0,0,0,1)] md:p-12">
           <p className="mb-8 text-center text-base font-black tracking-[0.2em] text-black uppercase">Market Access</p>
 
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-center md:gap-6">
-            <span className="flex h-16 shrink-0 items-center justify-center rounded-xl border-[3px] border-black bg-[#836ef9] px-8 text-xl font-black tracking-widest text-black shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+            <span className="flex h-16 shrink-0 items-center justify-center rounded-xl border-[3px] border-black bg-[#17a398] px-8 text-xl font-black tracking-widest text-black shadow-[4px_4px_0px_rgba(0,0,0,1)]">
               OPEN
             </span>
 
@@ -323,13 +1177,350 @@ export default function Home() {
                   onChange={(event) => handleDigitChange(idx, event)}
                   onKeyDown={(event) => handleDigitKeyDown(idx, event)}
                   onPaste={handleDigitPaste}
-                  className="h-16 w-full rounded-xl border-[3px] border-black bg-white text-center text-3xl font-black text-black shadow-[4px_4px_0px_rgba(0,0,0,1)] outline-none transition-transform focus:translate-x-[2px] focus:translate-y-[2px] focus:bg-[#f0e6ff] focus:shadow-[2px_2px_0px_rgba(0,0,0,1)]"
+                  className="h-16 w-full rounded-xl border-[3px] border-black bg-white text-center text-3xl font-black text-black shadow-[4px_4px_0px_rgba(0,0,0,1)] outline-none transition-transform focus:translate-x-[2px] focus:translate-y-[2px] focus:bg-[#ffe9d7] focus:shadow-[2px_2px_0px_rgba(0,0,0,1)]"
                 />
               ))}
             </div>
           </div>
 
           <p className="mt-10 text-center text-lg font-bold text-black">Enter your 10-digit market code to continue.</p>
+          <div className="mt-4 flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void handleAccessByCode()}
+              disabled={isMarketBusy}
+              className="rounded-lg border-[3px] border-black bg-[#ed7d31] px-5 py-2 text-sm font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] disabled:opacity-60"
+            >
+              Access Market By Code
+            </button>
+            {marketMessage ? <p className="text-xs font-semibold text-[#0f6c63]">{marketMessage}</p> : null}
+            {marketError ? <p className="text-xs font-semibold text-[#9d1b1b]">{marketError}</p> : null}
+          </div>
+
+          <div className="mt-12 grid gap-6 lg:grid-cols-2">
+            <article className="rounded-2xl border-[3px] border-black bg-[#f4fbfa] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-xl font-black uppercase tracking-wide">Wallet Connection</h2>
+              <p className="mt-2 text-sm font-semibold text-[#333]">
+                Connect MetaMask or WalletConnect as your main wallet. Your in-app wallet is auto-linked to that address.
+              </p>
+
+              <div className="mt-4 space-y-2 text-sm font-semibold">
+                <p>
+                  Wallet: {walletAddress ?? "Not connected"}
+                </p>
+                <p>
+                  Source: <span className="font-black uppercase">{externalWalletSource ?? "none"}</span>
+                </p>
+                <p>
+                  In-app wallet: {inAppWalletAddress ?? "Not initialized"}
+                </p>
+                <p>
+                  In-app balance: {inAppWalletBalance} MON
+                </p>
+              </div>
+
+              <p className="mt-3 text-xs font-semibold text-[#7a3d00]">
+                Withdrawals use your main wallet signer (gas from user wallet). App-to-app transfers use in-app wallet signing without popup.
+              </p>
+              {inAppWalletMessage ? <p className="mt-3 text-xs font-semibold text-[#0f6c63]">{inAppWalletMessage}</p> : null}
+              {inAppWalletError ? <p className="mt-3 text-xs font-semibold text-[#9d1b1b]">{inAppWalletError}</p> : null}
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#fff6ec] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-xl font-black uppercase tracking-wide">In-App Wallet</h2>
+              <p className="mt-2 text-sm font-semibold text-[#333]">Contract: {VAULT_ADDRESS}</p>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm font-semibold">
+                <p className="rounded-lg border-[2px] border-black bg-white px-3 py-2">Free: {vaultFreeBalance} MON</p>
+                <p className="rounded-lg border-[2px] border-black bg-white px-3 py-2">Locked: {vaultLockedBalance} MON</p>
+                <p className="rounded-lg border-[2px] border-black bg-white px-3 py-2">Min deposit: {minDeposit} MON</p>
+                <p className="rounded-lg border-[2px] border-black bg-white px-3 py-2">Vault total: {vaultHoldings} MON</p>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wide">Top Up In-App Wallet</label>
+                  <input
+                    value={depositAmount}
+                    onChange={(event) => setDepositAmount(event.target.value)}
+                    className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDeposit}
+                    disabled={isVaultBusy}
+                    className="rounded-lg border-[3px] border-black bg-[#17a398] px-4 py-2 text-sm font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] disabled:opacity-60"
+                  >
+                    Add Funds
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wide">Cash Out To Wallet</label>
+                  <input
+                    value={withdrawAmount}
+                    onChange={(event) => setWithdrawAmount(event.target.value)}
+                    className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleWithdraw}
+                    disabled={isVaultBusy}
+                    className="rounded-lg border-[3px] border-black bg-[#f7d046] px-4 py-2 text-sm font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] disabled:opacity-60"
+                  >
+                    Withdraw Funds
+                  </button>
+                  <p className="text-[11px] font-semibold text-[#7a3d00]">Gas is paid by your connected main wallet only.</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRefreshVault}
+                className="mt-4 rounded-lg border-[3px] border-black bg-white px-4 py-2 text-sm font-black shadow-[3px_3px_0px_rgba(0,0,0,1)]"
+              >
+                Refresh Vault Data
+              </button>
+
+              {vaultMessage ? <p className="mt-3 text-xs font-semibold text-[#0f6c63]">{vaultMessage}</p> : null}
+              {vaultError ? <p className="mt-3 text-xs font-semibold text-[#9d1b1b]">{vaultError}</p> : null}
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#eef5ff] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)] lg:col-span-2">
+              <h2 className="text-xl font-black uppercase tracking-wide">Permissionless App To App Transfer</h2>
+              <p className="mt-2 text-sm font-semibold text-[#333]">
+                Sends MON directly from the linked in-app wallet without opening MetaMask or WalletConnect confirmation.
+              </p>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <input
+                  value={transferRecipient}
+                  onChange={(event) => setTransferRecipient(event.target.value)}
+                  placeholder="Recipient address"
+                  className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                />
+                <input
+                  value={transferAmount}
+                  onChange={(event) => setTransferAmount(event.target.value)}
+                  placeholder="Amount in MON"
+                  className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleInAppTransfer}
+                disabled={isTransferBusy}
+                className="mt-4 rounded-lg border-[3px] border-black bg-[#6dd3ff] px-4 py-2 text-sm font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] disabled:opacity-60"
+              >
+                Send From In-App Wallet
+              </button>
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#f0fdf4] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)] lg:col-span-2">
+              <h2 className="text-xl font-black uppercase tracking-wide">Create Binary Market</h2>
+              <p className="mt-2 text-sm font-semibold text-[#333]">
+                Anyone can create a binary market through in-app wallet signatures. Seed liquidity must be at least 2 MON YES + 2 MON NO.
+              </p>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wide">YES Seed (MON)</label>
+                  <input
+                    value={createYesSeed}
+                    onChange={(event) => setCreateYesSeed(event.target.value)}
+                    className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wide">NO Seed (MON)</label>
+                  <input
+                    value={createNoSeed}
+                    onChange={(event) => setCreateNoSeed(event.target.value)}
+                    className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <label className="text-xs font-black uppercase tracking-wide">Market Question (max 300 chars)</label>
+                <textarea
+                  value={createQuestion}
+                  onChange={(event) => setCreateQuestion(event.target.value.slice(0, 300))}
+                  rows={3}
+                  className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  placeholder="Example: Will MON price be above X at date Y?"
+                />
+                <p className="text-[11px] font-semibold text-[#555]">{createQuestion.length}/300</p>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <label className="text-xs font-black uppercase tracking-wide">Oracle Description (max 1000 chars)</label>
+                <textarea
+                  value={createOracleDescription}
+                  onChange={(event) => setCreateOracleDescription(event.target.value.slice(0, 1000))}
+                  rows={4}
+                  className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  placeholder="Explain the market resolution criteria and oracle guidance..."
+                />
+                <p className="text-[11px] font-semibold text-[#555]">{createOracleDescription.length}/1000</p>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <label className="text-xs font-black uppercase tracking-wide">Oracle Links (up to 5)</label>
+                {createLinks.map((link, idx) => (
+                  <div key={`${idx}-${link}`} className="flex gap-2">
+                    <input
+                      value={link}
+                      onChange={(event) => handleCreateLinkChange(idx, event.target.value)}
+                      placeholder="https://"
+                      className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                    />
+                    {createLinks.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => removeOracleLinkField(idx)}
+                        className="rounded-lg border-[3px] border-black bg-white px-3 py-2 text-xs font-black"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={addOracleLinkField}
+                    disabled={createLinks.length >= 5}
+                    className="rounded-lg border-[3px] border-black bg-white px-4 py-2 text-xs font-black disabled:opacity-60"
+                  >
+                    Add Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateMarket()}
+                    disabled={isMarketBusy}
+                    className="rounded-lg border-[3px] border-black bg-[#17a398] px-4 py-2 text-xs font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] disabled:opacity-60"
+                  >
+                    Create Market
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#fff1f3] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-xl font-black uppercase tracking-wide">Markets You Created</h2>
+              <p className="mt-2 text-sm font-semibold text-[#333]">Codes are tied to your in-app wallet identity.</p>
+              <div className="mt-4 space-y-2 text-sm font-semibold">
+                {createdMarkets.length === 0 ? <p>No markets yet.</p> : null}
+                {createdMarkets.map((market) => (
+                  <button
+                    key={market.address}
+                    type="button"
+                    onClick={() => void handleAccessByCode(market.code)}
+                    className="block w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-left text-xs font-black"
+                  >
+                    {market.code}
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#f7f3ff] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-xl font-black uppercase tracking-wide">Loaded Market</h2>
+              {!selectedMarket ? (
+                <p className="mt-2 text-sm font-semibold text-[#333]">Access a market by OPEN code to view and interact.</p>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm font-black">Code: {selectedMarket.code}</p>
+                  <p className="mt-1 text-xs font-semibold">Creator: {selectedMarket.creator}</p>
+                  <p className="mt-2 text-sm font-semibold text-[#333]">Question: {selectedMarket.question}</p>
+                  <p className="mt-1 text-xs font-semibold">State: {selectedMarket.state === 0 ? "OPEN" : "RESOLVED"}</p>
+                  <p className="mt-1 text-xs font-semibold">YES Pool: {selectedMarket.totalYesStake} MON</p>
+                  <p className="mt-1 text-xs font-semibold">NO Pool: {selectedMarket.totalNoStake} MON</p>
+                  {selectedMarket.state === 1 ? (
+                    <p className="mt-1 text-xs font-semibold">Result: {selectedMarket.winningYes ? "YES" : "NO"}</p>
+                  ) : null}
+                  <p className="mt-3 text-xs font-semibold text-[#444]">{selectedMarket.oracleDescription}</p>
+
+                  {selectedMarket.links.length ? (
+                    <ul className="mt-3 space-y-1 text-xs font-semibold text-[#0f4c81]">
+                      {selectedMarket.links.map((link) => (
+                        <li key={link}>
+                          <a href={link} target="_blank" rel="noreferrer" className="underline">
+                            {link}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  <div className="mt-4 grid gap-2">
+                    <input
+                      value={tradeAmount}
+                      onChange={(event) => setTradeAmount(event.target.value)}
+                      placeholder="Trade amount in MON"
+                      className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                    />
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleTrade(true)}
+                        disabled={isMarketBusy || selectedMarket.state !== 0}
+                        className="rounded-lg border-[3px] border-black bg-[#17a398] px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Buy YES
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleTrade(false)}
+                        disabled={isMarketBusy || selectedMarket.state !== 0}
+                        className="rounded-lg border-[3px] border-black bg-[#f7d046] px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Buy NO
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleResolve(true)}
+                        disabled={
+                          isMarketBusy ||
+                          selectedMarket.state !== 0 ||
+                          !inAppWalletAddress ||
+                          selectedMarket.creator.toLowerCase() !== inAppWalletAddress.toLowerCase()
+                        }
+                        className="rounded-lg border-[3px] border-black bg-white px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Resolve YES
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleResolve(false)}
+                        disabled={
+                          isMarketBusy ||
+                          selectedMarket.state !== 0 ||
+                          !inAppWalletAddress ||
+                          selectedMarket.creator.toLowerCase() !== inAppWalletAddress.toLowerCase()
+                        }
+                        className="rounded-lg border-[3px] border-black bg-white px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Resolve NO
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleClaim()}
+                        disabled={isMarketBusy || selectedMarket.state !== 1}
+                        className="rounded-lg border-[3px] border-black bg-[#6dd3ff] px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Claim Payout
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </article>
+          </div>
         </section>
       </main>
     </div>
