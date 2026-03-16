@@ -74,6 +74,26 @@ export const getInAppWalletAddress = (primaryAddress: string) => {
   return new Wallet(record.privateKey).address;
 };
 
+export const signInAppTypedData = async ({
+  primaryAddress,
+  domain,
+  types,
+  value,
+}: {
+  primaryAddress: string;
+  domain: Record<string, unknown>;
+  types: Record<string, Array<{ name: string; type: string }>>;
+  value: Record<string, unknown>;
+}) => {
+  const record = readRecord(primaryAddress);
+  if (!record) {
+    throw new Error("In-app wallet not initialized for this wallet.");
+  }
+
+  const wallet = new Wallet(record.privateKey);
+  return wallet.signTypedData(domain, types, value);
+};
+
 export const sendInAppTransfer = async ({
   primaryAddress,
   to,

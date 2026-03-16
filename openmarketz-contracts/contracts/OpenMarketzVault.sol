@@ -26,6 +26,7 @@ contract OpenMarketzVault is Ownable, Pausable, ReentrancyGuard {
     error NoFeesToWithdraw();
     error EmergencyModeActive();
     error DirectTransferNotAllowed();
+    error UnauthorizedMarketAuthorizer(address caller);
 
     event Deposited(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
@@ -35,6 +36,7 @@ contract OpenMarketzVault is Ownable, Pausable, ReentrancyGuard {
     event FeesWithdrawn(address indexed to, uint256 amount);
     event MarketAuthorized(address indexed market);
     event MarketRevoked(address indexed market);
+    event MarketAuthorizerUpdated(address indexed authorizer, bool allowed);
     event MinDepositUpdated(uint256 oldAmount, uint256 newAmount);
     event EmergencyWithdraw(uint256 amount);
     event VaultDeployed(address indexed owner, uint256 timestamp);
@@ -42,6 +44,7 @@ contract OpenMarketzVault is Ownable, Pausable, ReentrancyGuard {
     mapping(address => uint256) private balances;
     mapping(address => uint256) private lockedBalances;
     mapping(address => bool) private authorizedMarkets;
+    mapping(address => bool) private marketAuthorizers;
 
     uint256 private totalVaultBalance;
     uint256 private protocolFees;
@@ -61,6 +64,13 @@ contract OpenMarketzVault is Ownable, Pausable, ReentrancyGuard {
     modifier whenVaultOperational() {
         if (emergencyMode) {
             revert EmergencyModeActive();
+        }
+        _;
+    }
+
+    modifier onlyOwnerOrMarketAuthorizer() {
+        if (owner() != msg.sender && !marketAuthorizers[msg.sender]) {
+            revert UnauthorizedMarketAuthorizer(msg.sender);
         }
         _;
     }
@@ -149,7 +159,7 @@ contract OpenMarketzVault is Ownable, Pausable, ReentrancyGuard {
      * @dev Owner-only admin control.
      * @param market Address of the market contract to authorize.
      */
-    function authorizeMarket(address market) external onlyOwner {
+    function authorizeMarket(address market) external onlyOwnerOrMarketAuthorizer {
         if (market == address(0)) {
             revert ZeroAddress();
         }
@@ -163,13 +173,28 @@ contract OpenMarketzVault is Ownable, Pausable, ReentrancyGuard {
      * @dev Owner-only admin control.
      * @param market Address of the market contract to revoke.
      */
-    function revokeMarket(address market) external onlyOwner {
+    function revokeMarket(address market) external onlyOwnerOrMarketAuthorizer {
         if (market == address(0)) {
             revert ZeroAddress();
         }
 
         authorizedMarkets[market] = false;
         emit MarketRevoked(market);
+    }
+
+    /**
+     * @notice Sets whether an address can authorize and revoke market contracts.
+     * @dev Owner-only admin control used for factory-style permissionless deployments.
+     * @param authorizer Address to update.
+     * @param allowed Whether the address can manage authorized markets.
+     */
+    function setMarketAuthorizer(address authorizer, bool allowed) external onlyOwner {
+        if (authorizer == address(0)) {
+            revert ZeroAddress();
+        }
+
+        marketAuthorizers[authorizer] = allowed;
+        emit MarketAuthorizerUpdated(authorizer, allowed);
     }
 
     /**
@@ -394,6 +419,15 @@ contract OpenMarketzVault is Ownable, Pausable, ReentrancyGuard {
      */
     function isAuthorizedMarket(address market) external view returns (bool) {
         return authorizedMarkets[market];
+    }
+
+    /**
+     * @notice Checks whether an address can manage market authorization.
+     * @param authorizer Address to query.
+     * @return True when address can call authorizeMarket/revokeMarket.
+     */
+    function isMarketAuthorizer(address authorizer) external view returns (bool) {
+        return marketAuthorizers[authorizer];
     }
 
     /**

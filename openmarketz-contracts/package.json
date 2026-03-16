@@ -9,7 +9,9 @@
     "compile:force": "hardhat compile --force",
     "compile:fresh": "hardhat clean && hardhat compile",
     "test": "hardhat test",
-    "deploy:monad": "hardhat run deploy/deployVault.js --network monadTestnet"
+    "deploy:monad": "hardhat run deploy/deployVault.js --network monadTestnet",
+    "deploy:factory": "hardhat run deploy/deployMarketFactory.js --network monadTestnet",
+    "authorize:factory": "hardhat run deploy/authorizeFactory.js --network monadTestnet"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.2.0",

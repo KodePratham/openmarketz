@@ -7,6 +7,9 @@ import {
   isAddress,
   formatEther,
   parseEther,
+  ZeroAddress,
+  keccak256,
+  toUtf8Bytes,
 } from "ethers";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -14,14 +17,17 @@ import EthereumProvider from "@walletconnect/ethereum-provider";
 import {
   getInAppNativeBalance,
   getOrCreateInAppWallet,
+  signInAppTypedData,
   sendInAppTransfer,
 } from "../lib/temp-wallet/inAppWallet";
+import { binaryMarketAbi, marketFactoryAbi } from "../lib/market/abi";
 
 const CODE_LENGTH = 10;
 const MONAD_CHAIN_ID = 10143;
 const MONAD_CHAIN_ID_HEX = "0x279f";
 const MONAD_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz";
 const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS ?? "0xD2Dac9f3379F3936d1B69038c6C236Fd9f3d2c9b";
+const MARKET_FACTORY_ADDRESS = process.env.NEXT_PUBLIC_MARKET_FACTORY_ADDRESS ?? "";
 
 const vaultAbi = [
   "function deposit() payable",
@@ -45,6 +51,24 @@ type EthereumWindow = Window & {
 };
 
 type WalletConnectProvider = Awaited<ReturnType<typeof EthereumProvider.init>>;
+
+type CreatedMarket = {
+  address: string;
+  code: string;
+};
+
+type SelectedMarket = {
+  address: string;
+  code: string;
+  creator: string;
+  question: string;
+  oracleDescription: string;
+  links: string[];
+  totalYesStake: string;
+  totalNoStake: string;
+  state: number;
+  winningYes: boolean;
+};
 
 const hasRequestMethod = (value: unknown): value is Eip1193Provider => {
   return Boolean(value && typeof (value as Eip1193Provider).request === "function");
@@ -125,6 +149,17 @@ export default function Home() {
   const [vaultError, setVaultError] = useState<string | null>(null);
 
   const [codeDigits, setCodeDigits] = useState<string[]>(Array.from({ length: CODE_LENGTH }, () => ""));
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const [marketMessage, setMarketMessage] = useState<string | null>(null);
+  const [isMarketBusy, setIsMarketBusy] = useState(false);
+  const [createdMarkets, setCreatedMarkets] = useState<CreatedMarket[]>([]);
+  const [selectedMarket, setSelectedMarket] = useState<SelectedMarket | null>(null);
+  const [createQuestion, setCreateQuestion] = useState("");
+  const [createOracleDescription, setCreateOracleDescription] = useState("");
+  const [createLinks, setCreateLinks] = useState<string[]>([""]);
+  const [createYesSeed, setCreateYesSeed] = useState("2");
+  const [createNoSeed, setCreateNoSeed] = useState("2");
+  const [tradeAmount, setTradeAmount] = useState("0.1");
   const providerRef = useRef<WalletConnectProvider | null>(null);
   const injectedProviderRef = useRef<Eip1193Provider | null>(null);
   const digitRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -213,6 +248,63 @@ export default function Home() {
   const getVaultReader = () => {
     const provider = new JsonRpcProvider(MONAD_RPC_URL, MONAD_CHAIN_ID);
     return new Contract(VAULT_ADDRESS, vaultAbi, provider);
+  };
+
+  const getFactoryReader = () => {
+    const provider = new JsonRpcProvider(MONAD_RPC_URL, MONAD_CHAIN_ID);
+    return new Contract(MARKET_FACTORY_ADDRESS, marketFactoryAbi, provider);
+  };
+
+  const getMarketReader = (marketAddress: string) => {
+    const provider = new JsonRpcProvider(MONAD_RPC_URL, MONAD_CHAIN_ID);
+    return new Contract(marketAddress, binaryMarketAbi, provider);
+  };
+
+  const hydrateMarketSnapshot = async (marketAddress: string): Promise<SelectedMarket> => {
+    const market = getMarketReader(marketAddress);
+    const factory = getFactoryReader();
+
+    const [code, creator, question, oracleDescription, links, yesStake, noStake, state, winningYes] = await Promise.all([
+      market.marketCode(),
+      market.creator(),
+      market.marketQuestion(),
+      market.oracleDescription(),
+      factory.getMarketOracleLinks(marketAddress),
+      market.totalYesStake(),
+      market.totalNoStake(),
+      market.marketState(),
+      market.winningYes(),
+    ]);
+
+    return {
+      address: marketAddress,
+      code,
+      creator,
+      question,
+      oracleDescription,
+      links,
+      totalYesStake: formatEther(yesStake),
+      totalNoStake: formatEther(noStake),
+      state: Number(state),
+      winningYes,
+    };
+  };
+
+  const refreshCreatorMarkets = async (creatorAddress: string) => {
+    if (!isAddress(MARKET_FACTORY_ADDRESS)) {
+      return;
+    }
+
+    const factory = getFactoryReader();
+    const addresses = (await factory.getCreatorMarkets(creatorAddress)) as string[];
+
+    if (!addresses.length) {
+      setCreatedMarkets([]);
+      return;
+    }
+
+    const codes = (await Promise.all(addresses.map((marketAddress) => factory.getMarketCode(marketAddress)))) as string[];
+    setCreatedMarkets(addresses.map((address, idx) => ({ address, code: codes[idx] })));
   };
 
   const refreshVaultData = async () => {
@@ -597,6 +689,18 @@ export default function Home() {
     });
   }, [walletAddress]);
 
+  useEffect(() => {
+    if (!inAppWalletAddress || !isAddress(MARKET_FACTORY_ADDRESS)) {
+      setCreatedMarkets([]);
+      return;
+    }
+
+    void refreshCreatorMarkets(inAppWalletAddress).catch((error) => {
+      console.error("Could not load creator markets", error);
+      setMarketError("Could not load your created markets.");
+    });
+  }, [inAppWalletAddress]);
+
   const handleDigitChange = (index: number, event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.target.value.replace(/\D/g, "");
     if (!nextValue) {
@@ -649,6 +753,389 @@ export default function Home() {
     digitRefs.current[Math.min(pastedDigits.length, CODE_LENGTH) - 1]?.focus();
   };
 
+  const handleAccessByCode = async (codeOverride?: string) => {
+    if (!isAddress(MARKET_FACTORY_ADDRESS)) {
+      setMarketError("Set NEXT_PUBLIC_MARKET_FACTORY_ADDRESS to access markets.");
+      return;
+    }
+
+    const normalizedCode = codeOverride ?? `OPEN${codeDigits.join("")}`;
+    if (!/^OPEN\d{10}$/.test(normalizedCode)) {
+      setMarketError("Enter a full OPEN 10-digit code before accessing the market.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      setMarketMessage(null);
+      const factory = getFactoryReader();
+      const marketAddress = (await factory.getMarketByCode(normalizedCode)) as string;
+
+      if (!marketAddress || marketAddress === ZeroAddress) {
+        setMarketError("Market code not found.");
+        setSelectedMarket(null);
+        return;
+      }
+
+      const snapshot = await hydrateMarketSnapshot(marketAddress);
+      setSelectedMarket(snapshot);
+      setMarketMessage(`Loaded market ${snapshot.code}.`);
+    } catch (error) {
+      console.error("Market lookup failed", error);
+      setMarketError("Could not load market by code.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleCreateLinkChange = (index: number, value: string) => {
+    const next = [...createLinks];
+    next[index] = value;
+    setCreateLinks(next);
+  };
+
+  const addOracleLinkField = () => {
+    if (createLinks.length >= 5) {
+      return;
+    }
+    setCreateLinks((current) => [...current, ""]);
+  };
+
+  const removeOracleLinkField = (index: number) => {
+    setCreateLinks((current) => current.filter((_, idx) => idx !== index));
+  };
+
+  const handleCreateMarket = async () => {
+    if (!walletAddress || !inAppWalletAddress) {
+      setMarketError("Connect your wallet to create a market.");
+      return;
+    }
+
+    if (!isAddress(MARKET_FACTORY_ADDRESS)) {
+      setMarketError("Set NEXT_PUBLIC_MARKET_FACTORY_ADDRESS before creating markets.");
+      return;
+    }
+
+    const yesSeed = Number(createYesSeed);
+    const noSeed = Number(createNoSeed);
+    const links = createLinks.map((link) => link.trim()).filter(Boolean);
+
+    if (!createQuestion.trim() || createQuestion.length > 300) {
+      setMarketError("Question is required and must be under 300 characters.");
+      return;
+    }
+
+    if (!createOracleDescription.trim() || createOracleDescription.length > 1000) {
+      setMarketError("Oracle description is required and must be under 1000 characters.");
+      return;
+    }
+
+    if (links.length > 5) {
+      setMarketError("You can provide up to 5 oracle links.");
+      return;
+    }
+
+    if (Number.isNaN(yesSeed) || Number.isNaN(noSeed) || yesSeed < 2 || noSeed < 2 || yesSeed + noSeed < 4) {
+      setMarketError("Seed liquidity must be at least 2 MON on YES, 2 MON on NO, and 4 MON total.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      setMarketMessage(null);
+
+      const factory = getFactoryReader();
+      const nonce = await factory.nonces(inAppWalletAddress);
+      const yesSeedWei = parseEther(createYesSeed);
+      const noSeedWei = parseEther(createNoSeed);
+      const linksHash = await factory.hashLinks(links);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzMarketFactory",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: MARKET_FACTORY_ADDRESS,
+        },
+        types: {
+          CreateMarket: [
+            { name: "creator", type: "address" },
+            { name: "yesSeed", type: "uint256" },
+            { name: "noSeed", type: "uint256" },
+            { name: "questionHash", type: "bytes32" },
+            { name: "oracleDescriptionHash", type: "bytes32" },
+            { name: "linksHash", type: "bytes32" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          creator: inAppWalletAddress,
+          yesSeed: yesSeedWei,
+          noSeed: noSeedWei,
+          questionHash: keccak256(toUtf8Bytes(createQuestion)),
+          oracleDescriptionHash: keccak256(toUtf8Bytes(createOracleDescription)),
+          linksHash,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          req: {
+            creator: inAppWalletAddress,
+            yesSeed: yesSeedWei.toString(),
+            noSeed: noSeedWei.toString(),
+            question: createQuestion,
+            oracleDescription: createOracleDescription,
+            linksHash,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          links,
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string; code?: string; market?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Market creation failed.");
+      }
+
+      setMarketMessage(`Market created: ${payload.code}`);
+      setCodeDigits((payload.code?.replace("OPEN", "").split("") ?? Array.from({ length: CODE_LENGTH }, () => "")) as string[]);
+      setCreateQuestion("");
+      setCreateOracleDescription("");
+      setCreateLinks([""]);
+      await refreshCreatorMarkets(inAppWalletAddress);
+      if (payload.market) {
+        const snapshot = await hydrateMarketSnapshot(payload.market);
+        setSelectedMarket(snapshot);
+      }
+    } catch (error) {
+      console.error("Create market failed", error);
+      setMarketError((error as Error)?.message ?? "Could not create market.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleTrade = async (isYes: boolean) => {
+    if (!walletAddress || !inAppWalletAddress || !selectedMarket) {
+      setMarketError("Connect your wallet and load a market before trading.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      const market = getMarketReader(selectedMarket.address);
+      const nonce = await market.nonces(inAppWalletAddress);
+      const amountWei = parseEther(tradeAmount);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzBinaryMarket",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: selectedMarket.address,
+        },
+        types: {
+          Trade: [
+            { name: "trader", type: "address" },
+            { name: "isYes", type: "bool" },
+            { name: "amount", type: "uint256" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          trader: inAppWalletAddress,
+          isYes,
+          amount: amountWei,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketAddress: selectedMarket.address,
+          req: {
+            trader: inAppWalletAddress,
+            isYes,
+            amount: amountWei.toString(),
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Trade failed.");
+      }
+
+      setMarketMessage(`Trade submitted on ${isYes ? "YES" : "NO"}.`);
+      const snapshot = await hydrateMarketSnapshot(selectedMarket.address);
+      setSelectedMarket(snapshot);
+      await handleRefreshVault();
+    } catch (error) {
+      console.error("Trade failed", error);
+      setMarketError((error as Error)?.message ?? "Trade failed.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleResolve = async (yesWins: boolean) => {
+    if (!walletAddress || !inAppWalletAddress || !selectedMarket) {
+      setMarketError("Connect your wallet and load a market first.");
+      return;
+    }
+
+    if (selectedMarket.creator.toLowerCase() !== inAppWalletAddress.toLowerCase()) {
+      setMarketError("Only the market creator can resolve this market.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      const market = getMarketReader(selectedMarket.address);
+      const nonce = await market.nonces(inAppWalletAddress);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzBinaryMarket",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: selectedMarket.address,
+        },
+        types: {
+          Resolve: [
+            { name: "yesWins", type: "bool" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          yesWins,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketAddress: selectedMarket.address,
+          req: {
+            yesWins,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Resolve failed.");
+      }
+
+      setMarketMessage(`Market resolved: ${yesWins ? "YES" : "NO"} wins.`);
+      const snapshot = await hydrateMarketSnapshot(selectedMarket.address);
+      setSelectedMarket(snapshot);
+    } catch (error) {
+      console.error("Resolve failed", error);
+      setMarketError((error as Error)?.message ?? "Resolve failed.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
+  const handleClaim = async () => {
+    if (!walletAddress || !inAppWalletAddress || !selectedMarket) {
+      setMarketError("Connect your wallet and load a market first.");
+      return;
+    }
+
+    try {
+      setIsMarketBusy(true);
+      setMarketError(null);
+      const market = getMarketReader(selectedMarket.address);
+      const nonce = await market.nonces(inAppWalletAddress);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+      const signature = await signInAppTypedData({
+        primaryAddress: walletAddress,
+        domain: {
+          name: "OpenMarketzBinaryMarket",
+          version: "1",
+          chainId: MONAD_CHAIN_ID,
+          verifyingContract: selectedMarket.address,
+        },
+        types: {
+          Claim: [
+            { name: "claimant", type: "address" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        value: {
+          claimant: inAppWalletAddress,
+          nonce,
+          deadline,
+        },
+      });
+
+      const response = await fetch("/api/relayer/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketAddress: selectedMarket.address,
+          req: {
+            claimant: inAppWalletAddress,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+          },
+          signature,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Claim failed.");
+      }
+
+      setMarketMessage("Claim completed.");
+      const snapshot = await hydrateMarketSnapshot(selectedMarket.address);
+      setSelectedMarket(snapshot);
+      await handleRefreshVault();
+    } catch (error) {
+      console.error("Claim failed", error);
+      setMarketError((error as Error)?.message ?? "Claim failed.");
+    } finally {
+      setIsMarketBusy(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen w-full bg-[#f5f0e8] text-black font-sans selection:bg-[#ed7d31]/30">
       <header className="relative z-10 flex w-full items-center justify-between border-b-[3px] border-black bg-[#fdf8f0] px-6 py-6 md:px-12">
@@ -697,6 +1184,18 @@ export default function Home() {
           </div>
 
           <p className="mt-10 text-center text-lg font-bold text-black">Enter your 10-digit market code to continue.</p>
+          <div className="mt-4 flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void handleAccessByCode()}
+              disabled={isMarketBusy}
+              className="rounded-lg border-[3px] border-black bg-[#ed7d31] px-5 py-2 text-sm font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] disabled:opacity-60"
+            >
+              Access Market By Code
+            </button>
+            {marketMessage ? <p className="text-xs font-semibold text-[#0f6c63]">{marketMessage}</p> : null}
+            {marketError ? <p className="text-xs font-semibold text-[#9d1b1b]">{marketError}</p> : null}
+          </div>
 
           <div className="mt-12 grid gap-6 lg:grid-cols-2">
             <article className="rounded-2xl border-[3px] border-black bg-[#f4fbfa] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)]">
@@ -816,6 +1315,210 @@ export default function Home() {
               >
                 Send From In-App Wallet
               </button>
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#f0fdf4] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)] lg:col-span-2">
+              <h2 className="text-xl font-black uppercase tracking-wide">Create Binary Market</h2>
+              <p className="mt-2 text-sm font-semibold text-[#333]">
+                Anyone can create a binary market through in-app wallet signatures. Seed liquidity must be at least 2 MON YES + 2 MON NO.
+              </p>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wide">YES Seed (MON)</label>
+                  <input
+                    value={createYesSeed}
+                    onChange={(event) => setCreateYesSeed(event.target.value)}
+                    className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wide">NO Seed (MON)</label>
+                  <input
+                    value={createNoSeed}
+                    onChange={(event) => setCreateNoSeed(event.target.value)}
+                    className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <label className="text-xs font-black uppercase tracking-wide">Market Question (max 300 chars)</label>
+                <textarea
+                  value={createQuestion}
+                  onChange={(event) => setCreateQuestion(event.target.value.slice(0, 300))}
+                  rows={3}
+                  className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  placeholder="Example: Will MON price be above X at date Y?"
+                />
+                <p className="text-[11px] font-semibold text-[#555]">{createQuestion.length}/300</p>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <label className="text-xs font-black uppercase tracking-wide">Oracle Description (max 1000 chars)</label>
+                <textarea
+                  value={createOracleDescription}
+                  onChange={(event) => setCreateOracleDescription(event.target.value.slice(0, 1000))}
+                  rows={4}
+                  className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                  placeholder="Explain the market resolution criteria and oracle guidance..."
+                />
+                <p className="text-[11px] font-semibold text-[#555]">{createOracleDescription.length}/1000</p>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <label className="text-xs font-black uppercase tracking-wide">Oracle Links (up to 5)</label>
+                {createLinks.map((link, idx) => (
+                  <div key={`${idx}-${link}`} className="flex gap-2">
+                    <input
+                      value={link}
+                      onChange={(event) => handleCreateLinkChange(idx, event.target.value)}
+                      placeholder="https://"
+                      className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                    />
+                    {createLinks.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => removeOracleLinkField(idx)}
+                        className="rounded-lg border-[3px] border-black bg-white px-3 py-2 text-xs font-black"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={addOracleLinkField}
+                    disabled={createLinks.length >= 5}
+                    className="rounded-lg border-[3px] border-black bg-white px-4 py-2 text-xs font-black disabled:opacity-60"
+                  >
+                    Add Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateMarket()}
+                    disabled={isMarketBusy}
+                    className="rounded-lg border-[3px] border-black bg-[#17a398] px-4 py-2 text-xs font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] disabled:opacity-60"
+                  >
+                    Create Market
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#fff1f3] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-xl font-black uppercase tracking-wide">Markets You Created</h2>
+              <p className="mt-2 text-sm font-semibold text-[#333]">Codes are tied to your in-app wallet identity.</p>
+              <div className="mt-4 space-y-2 text-sm font-semibold">
+                {createdMarkets.length === 0 ? <p>No markets yet.</p> : null}
+                {createdMarkets.map((market) => (
+                  <button
+                    key={market.address}
+                    type="button"
+                    onClick={() => void handleAccessByCode(market.code)}
+                    className="block w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-left text-xs font-black"
+                  >
+                    {market.code}
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className="rounded-2xl border-[3px] border-black bg-[#f7f3ff] p-6 shadow-[6px_6px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-xl font-black uppercase tracking-wide">Loaded Market</h2>
+              {!selectedMarket ? (
+                <p className="mt-2 text-sm font-semibold text-[#333]">Access a market by OPEN code to view and interact.</p>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm font-black">Code: {selectedMarket.code}</p>
+                  <p className="mt-1 text-xs font-semibold">Creator: {selectedMarket.creator}</p>
+                  <p className="mt-2 text-sm font-semibold text-[#333]">Question: {selectedMarket.question}</p>
+                  <p className="mt-1 text-xs font-semibold">State: {selectedMarket.state === 0 ? "OPEN" : "RESOLVED"}</p>
+                  <p className="mt-1 text-xs font-semibold">YES Pool: {selectedMarket.totalYesStake} MON</p>
+                  <p className="mt-1 text-xs font-semibold">NO Pool: {selectedMarket.totalNoStake} MON</p>
+                  {selectedMarket.state === 1 ? (
+                    <p className="mt-1 text-xs font-semibold">Result: {selectedMarket.winningYes ? "YES" : "NO"}</p>
+                  ) : null}
+                  <p className="mt-3 text-xs font-semibold text-[#444]">{selectedMarket.oracleDescription}</p>
+
+                  {selectedMarket.links.length ? (
+                    <ul className="mt-3 space-y-1 text-xs font-semibold text-[#0f4c81]">
+                      {selectedMarket.links.map((link) => (
+                        <li key={link}>
+                          <a href={link} target="_blank" rel="noreferrer" className="underline">
+                            {link}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  <div className="mt-4 grid gap-2">
+                    <input
+                      value={tradeAmount}
+                      onChange={(event) => setTradeAmount(event.target.value)}
+                      placeholder="Trade amount in MON"
+                      className="w-full rounded-lg border-[3px] border-black bg-white px-3 py-2 text-sm font-semibold outline-none"
+                    />
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleTrade(true)}
+                        disabled={isMarketBusy || selectedMarket.state !== 0}
+                        className="rounded-lg border-[3px] border-black bg-[#17a398] px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Buy YES
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleTrade(false)}
+                        disabled={isMarketBusy || selectedMarket.state !== 0}
+                        className="rounded-lg border-[3px] border-black bg-[#f7d046] px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Buy NO
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleResolve(true)}
+                        disabled={
+                          isMarketBusy ||
+                          selectedMarket.state !== 0 ||
+                          !inAppWalletAddress ||
+                          selectedMarket.creator.toLowerCase() !== inAppWalletAddress.toLowerCase()
+                        }
+                        className="rounded-lg border-[3px] border-black bg-white px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Resolve YES
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleResolve(false)}
+                        disabled={
+                          isMarketBusy ||
+                          selectedMarket.state !== 0 ||
+                          !inAppWalletAddress ||
+                          selectedMarket.creator.toLowerCase() !== inAppWalletAddress.toLowerCase()
+                        }
+                        className="rounded-lg border-[3px] border-black bg-white px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Resolve NO
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleClaim()}
+                        disabled={isMarketBusy || selectedMarket.state !== 1}
+                        className="rounded-lg border-[3px] border-black bg-[#6dd3ff] px-3 py-2 text-xs font-black disabled:opacity-60"
+                      >
+                        Claim Payout
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </article>
           </div>
         </section>
