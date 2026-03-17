@@ -56,3 +56,26 @@
 	- treasury: 0xc969D2c98c24bDA56fb5Dd2D01d14214FB8aE2d1
 	- contract: 0xeD5A4f0A0bF5dF8a19Fa7a9793334949dFDE45F4
 - Frontend local runtime target standardized to localhost:3069.
+
+## 2026-03-17 Session 5
+- Ran deep design Q&A to finalize AMM economics and settlement policy for V2.
+- Locked decisions:
+	- AMM market path with creator seed >= 2 MON.
+	- Bootstrap equivalence of 2 YES + 2 NO at creation.
+	- Creator-only liquidity top-up.
+	- Trade fee 50 bps, split 70% LP and 30% treasury.
+	- Strict immutable winner fee 2% on profit only.
+	- Creator resolves; unresolved auto-cancel after 24h.
+	- Refund basis on cancel uses trader net cash ledger.
+	- V1 remains untouched; V2 ships as separate contract.
+- Started implementation:
+	- Added new contract: openmarketz-contracts/contracts/OpenMarketzAMM.sol.
+	- Added deployment script: openmarketz-contracts/scripts/deploy-amm.ts.
+	- Added test baseline: openmarketz-contracts/test/OpenMarketzAMM.test.ts.
+	- Added package script: deploy:amm:testnet.
+- Updated codex-corner contract and risk docs with finalized policy and implementation baseline notes.
+
+## Next Milestones
+- Complete full LMSR pricing integration in OpenMarketzAMM trade path.
+- Add transferable LP-token fee-entitlement mechanics and tests.
+- Integrate frontend market route for V1/V2 mode handling and AMM actions.

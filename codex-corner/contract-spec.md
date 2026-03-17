@@ -63,3 +63,87 @@
 - Reentrancy protection on payout flow.
 - Strict claim bookkeeping to prevent double claim.
 - Correct payout and fee math under all pool distributions.
+
+## V2 AMM Spec (In Progress)
+
+### Finalized Decisions
+- Market engine: AMM-based binary market.
+- Initial seed requirement: minimum 2 MON at market creation.
+- Bootstrap rule: creation seeds symmetric starting inventory equivalent to 2 YES and 2 NO shares.
+- Market type scope: binary YES/NO only.
+- Liquidity top-up: creator only.
+- LP representation target: transferable ERC-20 LP token model (fees should follow holder).
+- Trading fee: 50 bps on buys and sells.
+- Trading fee split: 70% LP and 30% treasury.
+- Winner fee: immutable strict 2% on profit only.
+- Winner fee destination: treasury.
+- Fee stacking rule: winner redemption applies winner fee only.
+- Resolver authority: creator.
+- Unresolved fallback: auto-cancel after close + 24h grace.
+- Cancel refund basis: net cash deposited minus realized sell proceeds, with LP bearing market-making PnL.
+- Migration policy: keep legacy OpenMarketz (V1) untouched and deploy separate OpenMarketzAMM.
+
+### Core V2 Market State (Target)
+- creator
+- question
+- description
+- createdAt
+- closeTime
+- resolveDeadline (closeTime + 24h)
+- status (OPEN / RESOLVED / CANCELED)
+- outcomeYes (on resolve)
+- yes/no share supplies
+- collateralPool
+- liquidity parameter b (derived from initial seed, multiplier 1.0x)
+- fee accumulators:
+	- treasury trade fees
+	- LP trade fees
+	- treasury winner fees
+- winner payout snapshot fields for deterministic redemption after resolve
+
+### V2 Flow Rules (Current Implementation Baseline)
+1. createMarket(question, description, closeTime)
+- requires closeTime in future.
+- requires seed >= 2 MON.
+- creates OPEN market with symmetric bootstrap YES/NO shares.
+- creator receives bootstrap inventory and initial LP accounting.
+
+2. addLiquidity(marketId)
+- creator only.
+- allowed while OPEN.
+- mints additional LP accounting shares proportional to pool state.
+
+3. buyYes/buyNo(marketId, shares)
+- OPEN and before closeTime.
+- calculates gross trade cost from market price function.
+- collects 50 bps trade fee.
+- routes fee accounting to LP/treasury split.
+
+4. sellYes/sellNo(marketId, shares)
+- OPEN and before closeTime.
+- holder must own shares.
+- pays net proceeds after 50 bps fee.
+- updates trader cost basis and net-cash ledger used by cancel refunds.
+
+5. resolveMarket(marketId, outcome)
+- creator only.
+- only after closeTime.
+- snapshots winner payout-per-share from collateral pool and winning supply.
+
+6. redeemWinningShares(marketId)
+- market must be RESOLVED.
+- trader redeems winning shares.
+- strict winner fee = 2% of profit only.
+- fee accrues to treasury winner-fee bucket.
+
+7. triggerAutoCancel(marketId)
+- allowed if unresolved after resolveDeadline.
+- sets market to CANCELED.
+
+8. claimCancelRefund(marketId)
+- market must be CANCELED.
+- refund amount comes from trader net-cash ledger.
+
+### Implementation Note
+- Current baseline starts AMM transition and fee architecture in a new contract.
+- Next iteration upgrades pricing path to full LMSR math implementation while preserving finalized fee and settlement policy.
