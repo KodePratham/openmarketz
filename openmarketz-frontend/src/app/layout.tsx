@@ -27,6 +27,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <div className="bg-purple-100 text-black border-b border-black px-4 py-3 text-sm font-medium text-center">
+          We&apos;re a permissionless prediction markets platform operating on MONAD testnet. We hope to see a lot of changes in the upcoming days, if you wish to contribute to the project or help it get on the mainnet please contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-700">@prathamkode</a>. We hope you enjoy!
+        </div>
         {children}
       </body>
     </html>
