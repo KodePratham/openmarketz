@@ -6,7 +6,8 @@
     "clean": "hardhat clean",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:testnet": "hardhat run scripts/deploy.ts --network monadTestnet"
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network monadTestnet",
+    "deploy:amm:testnet": "hardhat run scripts/deploy-amm.ts --network monadTestnet"
   },
   "keywords": [],
   "author": "",

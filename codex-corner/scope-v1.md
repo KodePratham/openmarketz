@@ -1,29 +1,33 @@
-# Scope V1
+# Scope Showcase AMM
 
 ## Included
-- Yes/no market creation with required close time.
-- Market metadata: question, description, close timestamp.
-- Unique OPEN code generation and on-chain code lookup.
-- Betting with native MON only.
+- AMM yes/no market creation with required close time and seed >= 2 MON.
+- On-chain AMM OPEN code generation and OPEN->marketId lookup.
+- On-chain wallet portfolio getters for created/invested market ids.
+- Calendar-based close date selection with time dropdown in create flow.
+- Local + UTC close-time display.
+- Buy/sell AMM shares with live market polling.
+- Dedicated `/my-markets` route with search/filter/sort for created and invested cards.
 - Creator-only resolution after close time.
-- Winner claim flow with pro-rata payout.
-- Protocol fee: 200 bps on winnings to treasury.
-- Market cancel by creator before first bet.
-- My Markets: created markets and participated markets.
+- Resolve deadline visibility (close + 24h) and countdown.
+- Winner redeem flow after resolve.
+- Resolve confirmation modal (YES/NO) for creators.
 
 ## Excluded
-- Dispute/fallback resolver.
-- Social reputation scoring.
+- V1 UI routes and V1 market interactions.
+- Dispute/fallback resolver override before auto-cancel.
 - WalletConnect and additional wallets.
-- Global market discover feed.
+- Global market discovery feed.
 - Mainnet deployment.
 - CI pipeline setup.
 
 ## Acceptance Criteria
-- Market creation from UI returns OPEN code.
-- Second wallet can place bet before close.
-- Bet after close is rejected.
+- AMM market creation from UI returns OPEN code.
+- AMM market opens by OPEN code only.
+- Users reliably see their created and invested markets quickly after refresh/connect.
+- Trade after close is rejected.
 - Non-creator resolve fails.
-- Creator resolve after close succeeds.
-- Winner claim succeeds and double claim fails.
-- Fee transfer to treasury is correct.
+- Creator resolve before close fails.
+- Creator resolve after close succeeds through confirmation modal.
+- Winners redeem after resolve.
+- Resolve deadline countdown is visible.
