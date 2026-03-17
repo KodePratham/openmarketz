@@ -79,3 +79,40 @@
 - Complete full LMSR pricing integration in OpenMarketzAMM trade path.
 - Add transferable LP-token fee-entitlement mechanics and tests.
 - Integrate frontend market route for V1/V2 mode handling and AMM actions.
+
+## 2026-03-17 Session 6
+- Shifted product direction to AMM-only showcase MVP on frontend.
+- Confirmed behavioral decisions for MVP:
+	- AMM code source: on-chain.
+	- Code format: OPEN + 10 random digits.
+	- Open method: code-only in UI.
+	- Creator resolve only after close; show close/deadline countdown.
+	- Resolve UX: YES/NO buttons with confirmation modal.
+	- Close time UX: calendar date picker plus time dropdowns.
+	- Time display: both local and UTC.
+- Implemented OpenMarketzAMM contract code identity support:
+	- Added uint64 market code in state.
+	- Added codeToMarketId mapping.
+	- Added bounded unique code generation.
+	- Added getMarketIdByOpenCode + formatOpenCode.
+	- Updated MarketCreated event payload to include code.
+- Expanded AMM tests to cover OPEN code emission/format/lookup and invalid code rejection.
+- Frontend updates in progress:
+	- Removed V1 routes from active app surface.
+	- Home page now AMM-only create + AMM open-by-code.
+	- Added calendar-based close date and time dropdown controls.
+	- AMM detail page now resolves OPEN code to marketId and includes creator resolve confirmation modal.
+
+## 2026-03-17 Session 7
+- Implemented AMM wallet portfolio indexing in contract:
+	- Added `getCreatedMarkets(address)` and `getParticipatedMarkets(address)`.
+	- Added on-write tracking with participation dedupe guard.
+- Extended AMM tests for created/invested getter behavior and duplicate prevention.
+- Verified contract suite passes (OpenMarketz + OpenMarketzAMM).
+- Refactored frontend home dashboard to getter-based hydration (removed event-log scan dependency).
+- Added portfolio loader utility with short session cache for faster rehydration.
+- Added dedicated `/my-markets` route with search/filter/sort and refresh.
+- Improved dashboard polish with skeleton loaders, clearer empty states, status chips, and explicit refresh controls.
+- Redeployed AMM to Monad testnet after getter changes:
+	- contract: 0xd0081cd6782cB27718462D8519e0f2A4fd41FA10
+	- deployer/treasury: 0xc969D2c98c24bDA56fb5Dd2D01d14214FB8aE2d1

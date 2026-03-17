@@ -68,6 +68,7 @@
 
 ### Finalized Decisions
 - Market engine: AMM-based binary market.
+- AMM market code standard: OPEN<10-digit-random> generated on-chain.
 - Initial seed requirement: minimum 2 MON at market creation.
 - Bootstrap rule: creation seeds symmetric starting inventory equivalent to 2 YES and 2 NO shares.
 - Market type scope: binary YES/NO only.
@@ -89,6 +90,7 @@
 - description
 - createdAt
 - closeTime
+- code (uint64, renders as OPEN + fixed 10 digits)
 - resolveDeadline (closeTime + 24h)
 - status (OPEN / RESOLVED / CANCELED)
 - outcomeYes (on resolve)
@@ -100,49 +102,74 @@
 	- LP trade fees
 	- treasury winner fees
 - winner payout snapshot fields for deterministic redemption after resolve
+- creator market index mapping: `createdMarketIds[user]`
+- participant market index mapping: `participatedMarketIds[user]` + dedupe guard
 
 ### V2 Flow Rules (Current Implementation Baseline)
 1. createMarket(question, description, closeTime)
 - requires closeTime in future.
 - requires seed >= 2 MON.
+- generates unique 10-digit code with bounded collision retries.
+- stores codeToMarketId mapping.
 - creates OPEN market with symmetric bootstrap YES/NO shares.
 - creator receives bootstrap inventory and initial LP accounting.
 
-2. addLiquidity(marketId)
+2. getMarketIdByOpenCode(openCode)
+- validates OPEN prefix and 10-digit payload.
+- returns mapped marketId or zero if not found.
+
+3. formatOpenCode(code)
+- renders uint64 code as OPEN########## for frontend display.
+
+4. addLiquidity(marketId)
 - creator only.
 - allowed while OPEN.
 - mints additional LP accounting shares proportional to pool state.
 
-3. buyYes/buyNo(marketId, shares)
+5. buyYes/buyNo(marketId, shares)
 - OPEN and before closeTime.
 - calculates gross trade cost from market price function.
 - collects 50 bps trade fee.
 - routes fee accounting to LP/treasury split.
 
-4. sellYes/sellNo(marketId, shares)
+6. sellYes/sellNo(marketId, shares)
 - OPEN and before closeTime.
 - holder must own shares.
 - pays net proceeds after 50 bps fee.
 - updates trader cost basis and net-cash ledger used by cancel refunds.
 
-5. resolveMarket(marketId, outcome)
+7. resolveMarket(marketId, outcome)
 - creator only.
 - only after closeTime.
 - snapshots winner payout-per-share from collateral pool and winning supply.
 
-6. redeemWinningShares(marketId)
+8. redeemWinningShares(marketId)
 - market must be RESOLVED.
 - trader redeems winning shares.
 - strict winner fee = 2% of profit only.
 - fee accrues to treasury winner-fee bucket.
 
-7. triggerAutoCancel(marketId)
+9. triggerAutoCancel(marketId)
 - allowed if unresolved after resolveDeadline.
 - sets market to CANCELED.
 
-8. claimCancelRefund(marketId)
+10. claimCancelRefund(marketId)
 - market must be CANCELED.
 - refund amount comes from trader net-cash ledger.
+
+11. getCreatedMarkets(user)
+- returns ordered list of marketIds created by the wallet.
+- intended for frontend portfolio hydration without log scanning.
+
+12. getParticipatedMarkets(user)
+- returns deduped ordered list of marketIds where wallet has participated.
+- participation is tracked on market creation seed and buy actions.
+
+### Portfolio Indexing Notes (Implemented)
+- Indexing is additive and does not modify prior fee/resolution semantics.
+- `createMarket` tracks both creator ownership and creator participation.
+- `buyYes`/`buyNo` track participation with single-entry dedupe per marketId.
+- Frontend should still exclude `created` ids from `invested` section to avoid duplicate cards.
 
 ### Implementation Note
 - Current baseline starts AMM transition and fee architecture in a new contract.

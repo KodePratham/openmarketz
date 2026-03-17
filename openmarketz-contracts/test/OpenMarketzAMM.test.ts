@@ -25,9 +25,30 @@ describe("OpenMarketzAMM", function () {
     const { contract, creator, traderA } = await deployFixture();
     const now = (await ethers.provider.getBlock("latest"))!.timestamp;
 
-    await contract
+    const tx = await contract
       .connect(creator)
       .createMarket("Will there be rain?", "Weather market", now + 3600, { value: ethers.parseEther("2") });
+    const receipt = await tx.wait();
+
+    const createdEvent = receipt.logs
+      .map((log: { topics: string[]; data: string }) => {
+        try {
+          return contract.interface.parseLog(log);
+        } catch {
+          return null;
+        }
+      })
+      .find((parsed: { name?: string } | null) => parsed?.name === "MarketCreated");
+
+    if (!createdEvent || createdEvent.args.code === undefined) {
+      throw new Error("MarketCreated event code not found");
+    }
+
+    const openCode = await contract.formatOpenCode(createdEvent.args.code);
+    expect(openCode).to.match(/^OPEN\d{10}$/);
+
+    const lookedUp = await contract.getMarketIdByOpenCode(openCode);
+    expect(lookedUp).to.equal(1n);
 
     await expectRevert(contract.connect(traderA).addLiquidity(1, { value: ethers.parseEther("1") }));
 
@@ -35,6 +56,47 @@ describe("OpenMarketzAMM", function () {
 
     const market = await contract.getMarket(1);
     expect(market.collateralPool).to.equal(ethers.parseEther("3"));
+
+    const creatorCreated = await contract.getCreatedMarkets(creator.address);
+    const creatorParticipated = await contract.getParticipatedMarkets(creator.address);
+    expect(creatorCreated).to.deep.equal([1n]);
+    expect(creatorParticipated).to.deep.equal([1n]);
+  });
+
+  it("tracks participated markets without duplicates across repeated buys", async function () {
+    const { contract, creator, traderA } = await deployFixture();
+    const now = (await ethers.provider.getBlock("latest"))!.timestamp;
+
+    await contract
+      .connect(creator)
+      .createMarket("Will volume rise?", "portfolio indexing", now + 3600, { value: ethers.parseEther("2") });
+
+    const shares = ethers.parseEther("0.1");
+    const yesPrice = await contract.getImpliedPriceBps(1, true);
+    const yesGross = (shares * yesPrice) / 10_000n;
+    const yesFee = (yesGross * 50n) / 10_000n;
+
+    await contract.connect(traderA).buyYes(1, shares, { value: yesGross + yesFee });
+
+    const noPrice = await contract.getImpliedPriceBps(1, false);
+    const noGross = (shares * noPrice) / 10_000n;
+    const noFee = (noGross * 50n) / 10_000n;
+
+    await contract.connect(traderA).buyNo(1, shares, { value: noGross + noFee });
+
+    const participated = await contract.getParticipatedMarkets(traderA.address);
+    expect(participated).to.deep.equal([1n]);
+
+    const created = await contract.getCreatedMarkets(traderA.address);
+    expect(created).to.deep.equal([]);
+  });
+
+  it("rejects invalid OPEN code lookups", async function () {
+    const { contract } = await deployFixture();
+
+    await expectRevert(contract.getMarketIdByOpenCode("OPEN123"));
+    await expectRevert(contract.getMarketIdByOpenCode("BADP1234567890"));
+    await expectRevert(contract.getMarketIdByOpenCode("OPEN12345A789"));
   });
 
   it("applies 0.5% trade fee and splits 70/30 LP and treasury", async function () {

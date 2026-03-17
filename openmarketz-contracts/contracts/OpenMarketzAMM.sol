@@ -5,6 +5,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 contract OpenMarketzAMM is ReentrancyGuard {
     uint256 public constant FEE_DENOMINATOR = 10_000;
+    uint256 public constant CODE_MIN = 1_000_000_000;
+    uint256 public constant CODE_RANGE = 9_000_000_000;
     uint256 public constant MIN_CREATION_SEED = 2 ether;
     uint256 public constant TRADE_FEE_BPS = 50;
     uint256 public constant TREASURY_TRADE_FEE_BPS = 3_000;
@@ -25,6 +27,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
         string description;
         uint64 createdAt;
         uint64 closeTime;
+        uint64 code;
         uint64 resolveDeadline;
         bool outcomeYes;
         MarketStatus status;
@@ -51,8 +54,13 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
     uint256 public nextMarketId = 1;
     address public treasury;
+    uint256 private entropyNonce;
 
     mapping(uint256 => Market) private markets;
+    mapping(uint64 => uint256) public codeToMarketId;
+    mapping(address => uint256[]) private createdMarketIds;
+    mapping(address => uint256[]) private participatedMarketIds;
+    mapping(address => mapping(uint256 => bool)) private hasParticipatedMarket;
     mapping(uint256 => mapping(address => TraderPosition)) public traderPositions;
     mapping(uint256 => mapping(address => uint256)) public lpShares;
     mapping(uint256 => uint256) public claimableTreasuryTradeFees;
@@ -61,6 +69,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
     event MarketCreated(
         uint256 indexed marketId,
+        uint64 indexed code,
         address indexed creator,
         string question,
         uint64 closeTime,
@@ -93,6 +102,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
     error InvalidTreasury();
     error MarketNotFound();
+    error CodeGenerationFailed();
     error InvalidCloseTime();
     error InvalidSeedAmount();
     error MarketNotOpen();
@@ -126,6 +136,9 @@ contract OpenMarketzAMM is ReentrancyGuard {
         marketId = nextMarketId;
         nextMarketId += 1;
 
+        uint64 code = _generateUniqueCode(msg.sender, marketId);
+        codeToMarketId[code] = marketId;
+
         uint256 bootstrapShares = 2 * SHARE_SCALE;
 
         markets[marketId] = Market({
@@ -134,6 +147,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
             description: description,
             createdAt: uint64(block.timestamp),
             closeTime: closeTime,
+            code: code,
             resolveDeadline: closeTime + uint64(RESOLUTION_GRACE_PERIOD),
             outcomeYes: false,
             status: MarketStatus.OPEN,
@@ -157,8 +171,10 @@ contract OpenMarketzAMM is ReentrancyGuard {
         creatorPosition.netCashDeposited = msg.value;
 
         lpShares[marketId][msg.sender] = msg.value;
+        _trackCreatedMarket(msg.sender, marketId);
+        _trackParticipation(msg.sender, marketId);
 
-        emit MarketCreated(marketId, msg.sender, question, closeTime, msg.value);
+        emit MarketCreated(marketId, code, msg.sender, question, closeTime, msg.value);
     }
 
     function addLiquidity(uint256 marketId) external payable returns (uint256 mintedShares) {
@@ -349,6 +365,23 @@ contract OpenMarketzAMM is ReentrancyGuard {
         return market;
     }
 
+    function getMarketIdByOpenCode(string calldata openCode) external view returns (uint256 marketId) {
+        uint64 code = _parseOpenCode(openCode);
+        marketId = codeToMarketId[code];
+    }
+
+    function getCreatedMarkets(address user) external view returns (uint256[] memory) {
+        return createdMarketIds[user];
+    }
+
+    function getParticipatedMarkets(address user) external view returns (uint256[] memory) {
+        return participatedMarketIds[user];
+    }
+
+    function formatOpenCode(uint64 code) external pure returns (string memory) {
+        return string(abi.encodePacked("OPEN", _toFixedTenDigitString(code)));
+    }
+
     function getImpliedPriceBps(uint256 marketId, bool yesSide) external view returns (uint256 priceBps) {
         Market memory market = markets[marketId];
         _revertIfMarketMissing(market);
@@ -380,6 +413,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
         if (msg.value != totalCost) revert IncorrectPayment();
 
         TraderPosition storage position = traderPositions[marketId][msg.sender];
+        _trackParticipation(msg.sender, marketId);
 
         if (yesSide) {
             position.yesShares += shares;
@@ -456,6 +490,16 @@ contract OpenMarketzAMM is ReentrancyGuard {
         claimableLpTradeFees[marketId] += lpFee;
     }
 
+    function _trackCreatedMarket(address user, uint256 marketId) private {
+        createdMarketIds[user].push(marketId);
+    }
+
+    function _trackParticipation(address user, uint256 marketId) private {
+        if (hasParticipatedMarket[user][marketId]) return;
+        hasParticipatedMarket[user][marketId] = true;
+        participatedMarketIds[user].push(marketId);
+    }
+
     function _proportionalCostReduction(uint256 costBasis, uint256 sharesSold, uint256 sharesBefore)
         private
         pure
@@ -481,6 +525,48 @@ contract OpenMarketzAMM is ReentrancyGuard {
         if (raw < 100) return 100;
         if (raw > 9_900) return 9_900;
         return raw;
+    }
+
+    function _generateUniqueCode(address creator, uint256 marketId) private returns (uint64) {
+        for (uint256 i = 0; i < 32; i++) {
+            entropyNonce += 1;
+            uint256 entropy = uint256(
+                keccak256(
+                    abi.encodePacked(block.timestamp, block.prevrandao, creator, marketId, entropyNonce, block.number)
+                )
+            );
+
+            uint64 code = uint64((entropy % CODE_RANGE) + CODE_MIN);
+            if (codeToMarketId[code] == 0) {
+                return code;
+            }
+        }
+
+        revert CodeGenerationFailed();
+    }
+
+    function _parseOpenCode(string calldata openCode) private pure returns (uint64) {
+        bytes memory input = bytes(openCode);
+        require(input.length == 14, "INVALID_OPEN_CODE_LENGTH");
+        require(input[0] == "O" && input[1] == "P" && input[2] == "E" && input[3] == "N", "INVALID_OPEN_CODE_PREFIX");
+
+        uint64 code;
+        for (uint256 i = 4; i < 14; i++) {
+            uint8 digit = uint8(input[i]);
+            require(digit >= 48 && digit <= 57, "INVALID_OPEN_CODE_DIGIT");
+            code = (code * 10) + (digit - 48);
+        }
+
+        return code;
+    }
+
+    function _toFixedTenDigitString(uint64 value) private pure returns (string memory) {
+        bytes memory buffer = new bytes(10);
+        for (uint256 i = 10; i > 0; i--) {
+            buffer[i - 1] = bytes1(uint8(48 + (value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 
     function _openMarket(uint256 marketId) private view returns (Market storage market) {

@@ -9,7 +9,7 @@
 2. Frontend app (Next.js app router)
 - Home route for create market and OPEN code entry.
 - Market detail route by code for read, bet, resolve, claim actions.
-- My Markets route for created and participated markets.
+- Dedicated My Markets route for created and invested market portfolios.
 
 3. Chain and wallet
 - Monad testnet, chainId 10143.
@@ -24,6 +24,9 @@
 5. Bettors place YES/NO bets until close time.
 6. Creator resolves market after close.
 7. Winners claim payout; protocol fee routed to treasury.
+8. Portfolio routes hydrate via `getCreatedMarkets(address)` and `getParticipatedMarkets(address)`.
+9. Frontend hydrates market cards by id with `getMarket(id)` + `formatOpenCode(code)`.
+10. Home summary and `/my-markets` share same portfolio loader with short session cache.
 
 ## Non-Goals in V1
 - No off-chain indexer dependency for code lookup.
