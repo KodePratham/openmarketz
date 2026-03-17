@@ -3,14 +3,14 @@
 @import "react-day-picker/dist/style.css";
 
 :root {
-  --background: #f7f3e8;
+  --background: #ffffff;
   --foreground: #111111;
   --surface: #ffffff;
   --surface-border: #141414;
   --muted-text: #474747;
-  --brand: #ff90e8;
-  --brand-strong: #ff6fdb;
-  --brand-soft: #fff3b0;
+  --brand: #a855f7;
+  --brand-strong: #9333ea;
+  --brand-soft: #f3e8ff;
 }
 
 @theme inline {
@@ -22,7 +22,7 @@
 
 body {
   background:
-    radial-gradient(circle at 0% 0%, #fff3b0 0%, #f7f3e8 45%, #f7f3e8 100%),
+    radial-gradient(circle at 0% 0%, #f3e8ff 0%, #ffffff 45%, #ffffff 100%),
     var(--background);
   color: var(--foreground);
   font-family: "Space Grotesk", var(--font-geist-sans), "Segoe UI", sans-serif;
@@ -84,7 +84,7 @@ body {
 }
 
 .ghost-button:hover {
-  background: #fff8dc;
+  background: #f3e8ff;
   transform: translate(-1px, -1px);
   box-shadow: 3px 3px 0 #111;
 }
@@ -110,7 +110,7 @@ body {
 }
 
 .gum-hero {
-  background: linear-gradient(135deg, #ffd6ee 0%, #fff9d2 100%);
+  background: white;
   position: relative;
   isolation: isolate;
 }
@@ -130,7 +130,7 @@ body {
   height: 96px;
   right: 18px;
   top: 12px;
-  background: #fff;
+  background: #f3e8ff;
 }
 
 .gum-hero::after {
@@ -138,7 +138,7 @@ body {
   height: 54px;
   right: 112px;
   top: 74px;
-  background: #c5f6fa;
+  background: #a855f7;
   animation-delay: 0.9s;
 }
 
@@ -158,7 +158,7 @@ body {
 .gum-note {
   border: 1px solid #111;
   border-radius: 12px;
-  background: #fff7cb;
+  background: #f3e8ff;
 }
 
 .market-row {
@@ -170,7 +170,7 @@ body {
 }
 
 .market-row:hover {
-  background: #fff8dc;
+  background: #f3e8ff;
   transform: translate(-2px, -2px);
   box-shadow: 4px 4px 0 #111;
 }
@@ -203,11 +203,11 @@ body {
 .dashboard-skeleton {
   border: 1px solid #111;
   border-radius: 12px;
-  background: linear-gradient(90deg, #fff3b0 0%, #fff9dd 50%, #fff3b0 100%);
+  background: linear-gradient(90deg, #f3e8ff 0%, #ffffff 50%, #f3e8ff 100%);
   background-size: 160% 100%;
   animation: skeletonPulse 1.2s ease-in-out infinite;
 }
 
 .gum-panel {
-  background-image: linear-gradient(145deg, #ffffff 0%, #fffdf5 100%);
+  background-image: linear-gradient(145deg, #ffffff 0%, #fdfcff 100%);
 }
