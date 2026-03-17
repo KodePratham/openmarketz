@@ -1,18 +1,31 @@
-# Dependencies
-/node_modules/
+## Node
+node_modules/
 
-# Contract tool outputs
-/artifacts/
-/cache/
-/out/
-/broadcast/
-/typechain-types/
-/coverage/
-
-# Environment files
+## Environment
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
-# Logs
+## Hardhat / Solidity
+artifacts/
+cache/
+build-info/
+typechain-types/
+typechain/
+
+## TypeScript / Build
+dist/
+coverage/
+
+## Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.log
+
+## Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

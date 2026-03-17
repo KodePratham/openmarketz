@@ -1,21 +1,5 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Environment setup
-
-Create `.env.local` in the project root (or copy from `.env.example`) and set:
-
-```bash
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
-
-# Optional WalletConnect app metadata
-NEXT_PUBLIC_APP_NAME=OpenMarketz
-NEXT_PUBLIC_APP_DESCRIPTION=OpenMarketz frontend
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is required for WalletConnect QR flow.
-MetaMask injected connection can still work without it.
-
 ## Getting Started
 
 First, run the development server:
@@ -30,7 +14,7 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3069](http://localhost:3069) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
