@@ -208,13 +208,22 @@ export default function MyMarketsPage() {
             {filteredCreated.map((item) => {
               const itemDate = new Date(Number(item.closeTime) * 1000);
               return (
-                <Link href={`/amm/${item.code}`} key={item.id.toString()} className="market-row block">
-                  <p className="font-semibold">{item.code}</p>
-                  <p className="mt-0.5 text-sm">{item.question}</p>
-                  <p className="text-muted mt-1 text-xs">
-                    <span className="status-chip">{statusLabel(item.status)}</span> closes {formatUtcDate(itemDate)} UTC
-                  </p>
-                </Link>
+                <div key={item.id.toString()} className="market-row">
+                  <Link href={`/amm/${item.code}`} className="block">
+                    <p className="font-semibold">{item.code}</p>
+                    <p className="mt-0.5 text-sm">{item.question}</p>
+                    <p className="text-muted mt-1 text-xs">
+                      <span className="status-chip">{statusLabel(item.status)}</span> closes {formatUtcDate(itemDate)} UTC
+                    </p>
+                  </Link>
+                  {item.status === 0 ? (
+                    <div className="mt-2">
+                      <Link href={`/amm/${item.code}#liquidity-panel`} className="ghost-button inline-flex px-3 py-1.5 text-xs">
+                        Top Up Liquidity
+                      </Link>
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>

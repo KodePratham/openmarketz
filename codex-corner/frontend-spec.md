@@ -15,6 +15,8 @@
 - Resolve OPEN code to marketId via AMM contract view.
 - Display AMM market metadata, status, implied YES/NO prices, and pool metrics.
 - Buy/Sell controls for YES/NO while market is open.
+- Creator-only liquidity top-up panel while market is OPEN.
+- Low-liquidity warning when collateral pool drops below 3 MON.
 - Show close countdown and resolve-deadline countdown.
 - Show close/deadline in both local timezone and UTC.
 - Creator resolve controls unlock only after close.
@@ -25,10 +27,17 @@
 3. /my-markets
 - Dedicated wallet portfolio view for created and invested markets.
 - Uses on-chain getter hydration via AMM contract (no full-history event scans).
+- Created market cards expose quick action to open liquidity top-up panel.
 - Search by OPEN code or question text.
 - Status filter: All/Open/Resolved/Canceled.
 - Sort options: newest, closing soon, OPEN code.
 - Manual refresh action and wallet-change rehydration.
+
+5. Landing stats
+- Landing route shows a hero stats band for protocol-wide metrics.
+- Metrics displayed: total markets created, total transactions, total volume processed, total liquidity, unique users.
+- Aggregation is on-chain only (event scans + reads), loaded once per page load.
+- Retry control appears when stats fetch fails.
 
 4. V1 route policy
 - No active V1 UI routes in showcase MVP.
@@ -51,5 +60,7 @@
 - Prevent empty question.
 - Require close time in future.
 - Require share amount > 0 for buys/sells.
+- Require liquidity top-up amount > 0.
 - Block actions when wallet disconnected.
+- Restrict top-up UI to creator and OPEN markets only.
 - OPEN code must match OPEN + 10 digits.

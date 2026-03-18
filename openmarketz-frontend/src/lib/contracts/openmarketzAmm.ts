@@ -4,6 +4,7 @@ export const MONAD_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC_URL || "https://t
 export const OPENMARKETZ_AMM_ADDRESS = process.env.NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS || "";
 
 export const openMarketzAmmAbi = [
+  "function nextMarketId() view returns (uint256)",
   "function createMarket(string question, string description, uint64 closeTime) payable returns (uint256 marketId)",
   "function addLiquidity(uint256 marketId) payable returns (uint256 mintedShares)",
   "function buyYes(uint256 marketId, uint256 shares) payable returns (uint256 grossCost, uint256 fee)",
@@ -24,6 +25,9 @@ export const openMarketzAmmAbi = [
   "event MarketCreated(uint256 indexed marketId, uint64 indexed code, address indexed creator, string question, uint64 closeTime, uint256 seedCollateral)",
   "event LiquidityAdded(uint256 indexed marketId, address indexed provider, uint256 amount, uint256 mintedLpShares)",
   "event SharesBought(uint256 indexed marketId, address indexed trader, bool yesSide, uint256 shares, uint256 grossCost, uint256 fee)",
+  "event SharesSold(uint256 indexed marketId, address indexed trader, bool yesSide, uint256 shares, uint256 grossProceeds, uint256 fee)",
+  "event MarketResolved(uint256 indexed marketId, bool outcomeYes, address indexed resolver, uint256 payoutPerWinningShare)",
+  "event WinnerRedeemed(uint256 indexed marketId, address indexed trader, uint256 grossPayout, uint256 winnerFee, uint256 netPayout)",
 ] as const;
 
 export function getAmmReadContract() {

@@ -15,6 +15,11 @@
 - Env wiring validated in openmarketz-frontend/.env.local:
 	- NEXT_PUBLIC_OPENMARKETZ_ADDRESS (V1)
 	- NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS (V2)
+	- NEXT_PUBLIC_OPENMARKETZ_START_BLOCK (stats scan floor)
+- Landing stats checks:
+	- Stats load without hard-fail state.
+	- Stats errors are actionable when they occur.
+	- Partial-warning mode appears only on event-scan partial failures.
 
 ## Functional Flow
 - Create -> Bet -> Resolve -> Claim works with two wallets.
@@ -37,10 +42,12 @@
 - Deployment docs explicitly explain how to deploy only one contract.
 - Deployment docs explicitly explain where to add deployed addresses in frontend env.
 
-## Current Status Snapshot (2026-03-17)
+## Current Status Snapshot (2026-03-18)
 - Monad testnet deploy: complete.
-- Latest AMM contract: 0xd0081cd6782cB27718462D8519e0f2A4fd41FA10.
+- Latest AMM contract: 0xc8B903577De4fC35f8c22E66a3587f3D0824Cba3.
+- Latest AMM deploy tx: 0xa215da157cf18a65b2d586496752b0d647249df0093e0a47f19abd36c4abe33c.
+- Latest AMM deployment block: 19614389.
 - Legacy V1 contract: 0xeD5A4f0A0bF5dF8a19Fa7a9793334949dFDE45F4.
 - Deployer/treasury: 0xc969D2c98c24bDA56fb5Dd2D01d14214FB8aE2d1.
 - Frontend local port: 3069.
-- Remaining: end-to-end two-wallet portfolio smoke flow against latest AMM address.
+- Remaining: full two-wallet AMM flow (create, top-up, trade, resolve, redeem) plus landing stats movement validation.
