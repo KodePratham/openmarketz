@@ -7,13 +7,32 @@ import { DayPicker } from "react-day-picker";
 import { formatEther, parseEther } from "ethers";
 import { connectMetaMask } from "@/lib/wallet/metamask";
 import { getAmmWriteContract } from "@/lib/contracts/openmarketzAmm";
-import { getProtocolStats, type ProtocolStats } from "@/lib/contracts/protocolStats";
 import { loadUserAmmPortfolio, type UserMarketCard } from "@/lib/contracts/userMarkets";
 
 type EthereumAccountsListener = (accounts: string[]) => void;
 type EthereumLike = {
   on?: (event: "accountsChanged", listener: EthereumAccountsListener) => void;
   removeListener?: (event: "accountsChanged", listener: EthereumAccountsListener) => void;
+};
+
+type ProtocolStatsSnapshot = {
+  totalMarkets: number;
+  totalTransactions: number;
+  totalVolumeWei: string;
+  totalLiquidityWei: string;
+  uniqueUsers: number;
+  latestBlock: number;
+  generatedAt: string;
+  warnings: string[];
+};
+
+type ProtocolStatsApiResponse = {
+  stats: ProtocolStatsSnapshot;
+  meta: {
+    refreshedAt: string;
+    stale: boolean;
+    source: "kv" | "memory" | "live";
+  };
 };
 
 function buildCloseTimestamp(date: Date | undefined, hour: string, minute: string): number | null {
@@ -42,11 +61,17 @@ function compactInteger(value: number): string {
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-function compactMon(weiValue: bigint): string {
+function compactMon(weiValue: string): string {
   const monValue = Number(formatEther(weiValue));
   if (!Number.isFinite(monValue)) return "0 MON";
   const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 2 }).format(monValue);
   return `${compact} MON`;
+}
+
+function formatLocalTime(value: string): string {
+  const ts = new Date(value);
+  if (Number.isNaN(ts.getTime())) return "-";
+  return ts.toLocaleTimeString();
 }
 
 export default function Home() {
@@ -65,7 +90,8 @@ export default function Home() {
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [loadingStats, setLoadingStats] = useState(true);
   const [statsError, setStatsError] = useState("");
-  const [stats, setStats] = useState<ProtocolStats | null>(null);
+  const [stats, setStats] = useState<ProtocolStatsSnapshot | null>(null);
+  const [statsMeta, setStatsMeta] = useState<ProtocolStatsApiResponse["meta"] | null>(null);
   const [createdMarkets, setCreatedMarkets] = useState<UserMarketCard[]>([]);
   const [investedMarkets, setInvestedMarkets] = useState<UserMarketCard[]>([]);
 
@@ -77,8 +103,16 @@ export default function Home() {
     try {
       setLoadingStats(true);
       setStatsError("");
-      const snapshot = await getProtocolStats();
-      setStats(snapshot);
+      const response = await fetch("/api/stats", { cache: "no-store" });
+      const payload = (await response.json()) as ProtocolStatsApiResponse | { error?: string };
+
+      if (!response.ok || !("stats" in payload)) {
+        const detail = "error" in payload && payload.error ? payload.error : `Request failed (${response.status})`;
+        throw new Error(detail);
+      }
+
+      setStats(payload.stats);
+      setStatsMeta(payload.meta);
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : "Unknown stats error";
@@ -254,7 +288,7 @@ export default function Home() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="gum-kicker">OpenMarketz</p>
-            <h1 className="mt-2 text-3xl font-black sm:text-5xl">Build crisp prediction markets on Monad</h1>
+            <h1 className="font-display mt-2 text-3xl font-black sm:text-5xl">Build crisp prediction markets on Monad</h1>
             <p className="text-muted mt-3 max-w-2xl text-sm sm:text-base">Create AMM markets, share OPEN codes, and manage your creator and investor activity from one dashboard.</p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -268,46 +302,47 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="shell-card overflow-hidden border border-[#f0d7b6] bg-[linear-gradient(120deg,#fff8ef_0%,#ffe7cc_50%,#ffd7a1_100%)] p-4 sm:p-6">
+      <section className="shell-card overflow-hidden border border-[#dcd5ff] bg-[linear-gradient(120deg,#ffffff_0%,#f6f3ff_52%,#ebe5ff_100%)] p-4 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-900/70">Protocol Stats</p>
-            <h2 className="mt-1 text-2xl font-black text-amber-950 sm:text-3xl">Live Pulse</h2>
-            <p className="mt-1 text-sm text-amber-900/80">All-time markets, activity, and throughput from on-chain events.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5f49dd]">Protocol Stats</p>
+            <h2 className="font-display mt-1 text-2xl font-black text-[#2a1f66] sm:text-3xl">Live Pulse</h2>
+            <p className="mt-1 text-sm text-[#4f4490]">All-time markets, activity, and throughput from cached on-chain aggregation.</p>
           </div>
-          <div className="text-xs text-amber-900/80">
+          <div className="text-xs text-[#4f4490]">
             {loadingStats ? "Loading stats..." : null}
-            {!loadingStats && stats ? <span suppressHydrationWarning>Updated {isClient ? stats.generatedAt.toLocaleTimeString() : "-"}</span> : null}
+            {!loadingStats && stats ? <span suppressHydrationWarning>Updated {isClient ? formatLocalTime(stats.generatedAt) : "-"}</span> : null}
+            {!loadingStats && statsMeta?.stale ? <span> (cached)</span> : null}
             {!loadingStats && statsError ? <span>{statsError}</span> : null}
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
-            <p className="text-xs uppercase tracking-wide text-amber-900/70">Markets</p>
-            <p className="mt-1 text-2xl font-black text-amber-950">{stats ? compactInteger(stats.totalMarkets) : "-"}</p>
+          <div className="rounded-xl border border-[#ded8ff] bg-white p-3">
+            <p className="text-xs uppercase tracking-wide text-[#6a5da8]">Markets</p>
+            <p className="font-display mt-1 text-2xl font-black text-[#2a1f66]">{stats ? compactInteger(stats.totalMarkets) : "-"}</p>
           </div>
-          <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
-            <p className="text-xs uppercase tracking-wide text-amber-900/70">Transactions</p>
-            <p className="mt-1 text-2xl font-black text-amber-950">{stats ? compactInteger(stats.totalTransactions) : "-"}</p>
+          <div className="rounded-xl border border-[#ded8ff] bg-white p-3">
+            <p className="text-xs uppercase tracking-wide text-[#6a5da8]">Transactions</p>
+            <p className="font-display mt-1 text-2xl font-black text-[#2a1f66]">{stats ? compactInteger(stats.totalTransactions) : "-"}</p>
           </div>
-          <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
-            <p className="text-xs uppercase tracking-wide text-amber-900/70">Volume Processed</p>
-            <p className="mt-1 text-2xl font-black text-amber-950">{stats ? compactMon(stats.totalVolumeWei) : "-"}</p>
+          <div className="rounded-xl border border-[#ded8ff] bg-white p-3">
+            <p className="text-xs uppercase tracking-wide text-[#6a5da8]">Volume Processed</p>
+            <p className="font-display mt-1 text-2xl font-black text-[#2a1f66]">{stats ? compactMon(stats.totalVolumeWei) : "-"}</p>
           </div>
-          <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
-            <p className="text-xs uppercase tracking-wide text-amber-900/70">Total Liquidity</p>
-            <p className="mt-1 text-2xl font-black text-amber-950">{stats ? compactMon(stats.totalLiquidityWei) : "-"}</p>
+          <div className="rounded-xl border border-[#ded8ff] bg-white p-3">
+            <p className="text-xs uppercase tracking-wide text-[#6a5da8]">Total Liquidity</p>
+            <p className="font-display mt-1 text-2xl font-black text-[#2a1f66]">{stats ? compactMon(stats.totalLiquidityWei) : "-"}</p>
           </div>
-          <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
-            <p className="text-xs uppercase tracking-wide text-amber-900/70">Unique Users</p>
-            <p className="mt-1 text-2xl font-black text-amber-950">{stats ? compactInteger(stats.uniqueUsers) : "-"}</p>
+          <div className="rounded-xl border border-[#ded8ff] bg-white p-3">
+            <p className="text-xs uppercase tracking-wide text-[#6a5da8]">Unique Users</p>
+            <p className="font-display mt-1 text-2xl font-black text-[#2a1f66]">{stats ? compactInteger(stats.uniqueUsers) : "-"}</p>
           </div>
         </div>
 
         {statsError ? (
           <div className="mt-4 flex items-center gap-3">
-            <p className="text-sm text-amber-900">Stats loading failed. You can retry now.</p>
+            <p className="text-sm text-[#4f4490]">Stats loading failed. Showing no snapshot right now, retry anytime.</p>
             <button type="button" onClick={() => void loadStats()} className="ghost-button px-3 py-1.5 text-sm">
               Retry
             </button>
@@ -315,7 +350,7 @@ export default function Home() {
         ) : null}
 
         {stats && stats.warnings.length > 0 ? (
-          <p className="mt-3 text-xs text-amber-900/80">Partial stats: {stats.warnings.join(", ")}.</p>
+          <p className="mt-3 text-xs text-[#5f49dd]">Partial stats: {stats.warnings.join(", ")}.</p>
         ) : null}
       </section>
 

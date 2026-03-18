@@ -36,8 +36,11 @@
 5. Landing stats
 - Landing route shows a hero stats band for protocol-wide metrics.
 - Metrics displayed: total markets created, total transactions, total volume processed, total liquidity, unique users.
-- Aggregation is on-chain only (event scans + reads), loaded once per page load.
-- Retry control appears when stats fetch fails.
+- Aggregation runs server-side and is cached in Vercel KV.
+- Landing page reads stats via API snapshot and renders cached values immediately.
+- Cache refresh target is once per day via Vercel Cron hitting POST /api/stats/refresh.
+- Stale snapshot behavior: show last cached value while triggering background refresh.
+- Retry control appears when stats fetch fails and re-requests API snapshot.
 
 4. V1 route policy
 - No active V1 UI routes in showcase MVP.
