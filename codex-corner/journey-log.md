@@ -116,3 +116,45 @@
 - Redeployed AMM to Monad testnet after getter changes:
 	- contract: 0xd0081cd6782cB27718462D8519e0f2A4fd41FA10
 	- deployer/treasury: 0xc969D2c98c24bDA56fb5Dd2D01d14214FB8aE2d1
+
+## 2026-03-18 Session 1
+- Clarified post-create liquidity behavior: seed at create, creator top-up later while OPEN.
+- Implemented creator-only liquidity top-up panel on AMM market page.
+- Added low-liquidity warning threshold at collateral pool below 3 MON.
+- Added My Markets quick action to jump directly to liquidity top-up panel.
+- Implemented landing hero stats section with on-chain aggregation:
+	- total markets created
+	- total transactions (create/trade/liquidity/resolve/redeem)
+	- total volume processed (create + liquidity + trades + redemptions)
+	- cumulative all-time liquidity (seed + top-ups)
+	- unique users across tracked actions
+- Added chunked event scan helper for better RPC resilience and partial-warning behavior.
+
+## 2026-03-18 Session 2
+- Started implementation for redeploy + stats loading failure.
+- Deployed fresh AMM on Monad testnet:
+	- contract: 0xc8B903577De4fC35f8c22E66a3587f3D0824Cba3
+	- txHash: 0xa215da157cf18a65b2d586496752b0d647249df0093e0a47f19abd36c4abe33c
+	- block: 19614389
+	- deployer/treasury: 0xc969D2c98c24bDA56fb5Dd2D01d14214FB8aE2d1
+- Improved deploy script output to include tx hash and block for deterministic frontend stats wiring.
+- Updated frontend env target to latest AMM deployment and set `NEXT_PUBLIC_OPENMARKETZ_START_BLOCK` to deployment block.
+- Hardened protocol stats loader:
+	- RPC timeout handling
+	- chainId verification
+	- start block and scan-range validation
+	- clearer surfaced error messages
+- Updated landing page to display actionable stats error reason and keep retry control.
+
+## 2026-03-19 Session 1
+- Replaced client-side full history stats scan on home load with server-side cached stats delivery.
+- Added Vercel KV-backed stats cache layer with stale-while-revalidate behavior.
+- Added API routes:
+	- GET /api/stats for fast snapshot reads
+	- POST /api/stats/refresh for forced daily refresh
+- Added daily Vercel cron schedule to refresh stats snapshots once every 24 hours.
+- Added refresh endpoint guard via STATS_CRON_SECRET header/bearer check.
+- Updated homepage stats loader to fetch cached API snapshot and show refreshed time from cache metadata.
+- Updated frontend visual system to #6e54ff + white and removed heavy box-shadow styling accents.
+- Swapped typography to Instrument Sans body + Libre Baskerville heading accents.
+- Updated codex-corner frontend spec to document new cache-first landing stats behavior.

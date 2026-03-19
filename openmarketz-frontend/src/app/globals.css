@@ -1,31 +1,36 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&display=swap");
 @import "tailwindcss";
 @import "react-day-picker/dist/style.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #111111;
+  --background: #fafafa;
+  --foreground: #000000;
   --surface: #ffffff;
-  --surface-border: #141414;
-  --muted-text: #474747;
-  --brand: #a855f7;
-  --brand-strong: #9333ea;
-  --brand-soft: #f3e8ff;
+  --surface-border: #000000;
+  --muted-text: #333333;
+  --brand: #7259ff;
+  --brand-strong: #6247e0;
+  --brand-soft: #f0ebff;
+  --accent-1: #ffd700;
+  --accent-2: #ff6b9d;
+  --accent-3: #00d4ff;
+  --accent-4: #00ff88;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-space-grotesk);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background:
-    radial-gradient(circle at 0% 0%, #f3e8ff 0%, #ffffff 45%, #ffffff 100%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
-  font-family: "Space Grotesk", var(--font-geist-sans), "Segoe UI", sans-serif;
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
 }
 
 @keyframes gumReveal {
@@ -39,65 +44,57 @@ body {
   }
 }
 
-@keyframes gumFloat {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
-  50% {
-    transform: translate3d(0, -8px, 0) rotate(2deg);
-  }
-}
-
 .shell-card {
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  border-radius: 16px;
-  box-shadow: 8px 8px 0 #111111;
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 100%);
+  border: 3px solid #000000;
+  border-radius: 14px;
+  box-shadow: 6px 6px 0 #000000;
   animation: gumReveal 240ms ease both;
 }
 
 .cta-button {
-  background: var(--brand);
-  color: #111;
-  border: 1px solid #111;
-  border-radius: 12px;
+  background: linear-gradient(135deg, #7259ff 0%, #9575ff 100%);
+  color: #ffffff;
+  border: 3px solid #000000;
+  border-radius: 10px;
   font-weight: 700;
-  box-shadow: 3px 3px 0 #111;
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  box-shadow: 3px 3px 0 #000000;
 }
 
 .cta-button:hover {
-  background: var(--brand-strong);
-  transform: translate(-2px, -2px);
-  box-shadow: 5px 5px 0 #111;
+  background: linear-gradient(135deg, #6247e0 0%, #8565ff 100%);
+  transform: translateY(-2px);
+  box-shadow: 5px 5px 0 #000000;
 }
 
 .ghost-button {
-  background: #fff;
-  color: #111;
-  border: 1px solid #111;
-  border-radius: 12px;
+  background: #ffffff;
+  color: #000000;
+  border: 3px solid #000000;
+  border-radius: 10px;
   font-weight: 700;
-  box-shadow: 2px 2px 0 #111;
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  box-shadow: 2px 2px 0 #000000;
 }
 
 .ghost-button:hover {
-  background: #f3e8ff;
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 #111;
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  color: #000000;
+  box-shadow: 4px 4px 0 #000000;
 }
 
 .field {
-  border: 1px solid #111;
-  border-radius: 12px;
-  background: #fff;
+  border: 3px solid #000000;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 500;
 }
 
 .field:focus-visible {
-  outline: 2px solid #111;
-  outline-offset: 1px;
+  outline: 3px solid #7259ff;
+  outline-offset: 2px;
 }
 
 .rdp {
@@ -110,82 +107,92 @@ body {
 }
 
 .gum-hero {
-  background: white;
-  position: relative;
-  isolation: isolate;
+  background: #7259ff;
+  color: #ffffff;
 }
 
-.gum-hero::before,
-.gum-hero::after {
-  content: "";
-  position: absolute;
-  border: 1px solid #111;
-  border-radius: 999px;
-  z-index: -1;
-  animation: gumFloat 3.8s ease-in-out infinite;
-}
-
-.gum-hero::before {
-  width: 96px;
-  height: 96px;
-  right: 18px;
-  top: 12px;
-  background: #f3e8ff;
-}
-
-.gum-hero::after {
-  width: 54px;
-  height: 54px;
-  right: 112px;
-  top: 74px;
-  background: #a855f7;
-  animation-delay: 0.9s;
+.gum-hero .text-muted,
+.gum-hero .gum-kicker {
+  color: #ffffff;
 }
 
 .gum-kicker {
-  letter-spacing: 0.2em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .gum-tag {
-  background: #fff;
-  border: 1px solid #111;
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  border: 2px solid #000000;
   border-radius: 999px;
+  font-weight: 700;
+  color: #000000;
 }
 
 .gum-note {
-  border: 1px solid #111;
-  border-radius: 12px;
-  background: #f3e8ff;
+  border: 3px solid #000000;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #7259ff 0%, #9575ff 100%);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+.gum-feature-card {
+  border: 3px solid #000000;
+  border-radius: 10px;
+  color: #000000;
+  font-weight: 600;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  position: relative;
+}
+
+.gum-feature-card:nth-child(1) {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+}
+
+.gum-feature-card:nth-child(2) {
+  background: linear-gradient(135deg, #00d4ff 0%, #00f0ff 100%);
+}
+
+.gum-feature-card:nth-child(3) {
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff8fb1 100%);
+}
+
+.gum-feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 4px 8px 0 #000000;
 }
 
 .market-row {
-  border: 1px solid #111;
-  border-radius: 12px;
+  border: 3px solid #000000;
+  border-radius: 10px;
   padding: 10px 12px;
-  background: #fff;
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 100%);
+  transition: border-color 120ms ease, background 120ms ease;
+  font-weight: 500;
 }
 
 .market-row:hover {
-  background: #f3e8ff;
-  transform: translate(-2px, -2px);
-  box-shadow: 4px 4px 0 #111;
+  background: linear-gradient(135deg, #7259ff 0%, #9575ff 100%);
+  color: #ffffff;
+  box-shadow: 4px 4px 0 #000000;
 }
 
 .status-chip {
   display: inline-flex;
   align-items: center;
   margin-right: 4px;
-  border: 1px solid #111;
+  border: 1px solid #000000;
   border-radius: 999px;
   padding: 1px 8px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 10px;
   letter-spacing: 0.04em;
-  background: #f5f5f5;
+  background: #000000;
+  color: #ffffff;
 }
 
 @keyframes skeletonPulse {
@@ -201,13 +208,34 @@ body {
 }
 
 .dashboard-skeleton {
-  border: 1px solid #111;
-  border-radius: 12px;
-  background: linear-gradient(90deg, #f3e8ff 0%, #ffffff 50%, #f3e8ff 100%);
+  border: 3px solid #000000;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #ffffff 0%, #f0ebff 50%, #ffd70033 100%);
   background-size: 160% 100%;
   animation: skeletonPulse 1.2s ease-in-out infinite;
 }
 
 .gum-panel {
-  background-image: linear-gradient(145deg, #ffffff 0%, #fdfcff 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 50%, #ffd70033 100%)!important;
+  border: 3px solid #000000!important;
+}
+
+.oracle-panel {
+  border: 3px solid #000000;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 100%);
+  box-shadow: 4px 4px 0 #000000;
+}
+
+.brand-progress {
+  border: 1px solid #000000;
+  background: #ffffff;
+}
+
+.brand-progress-yes {
+  background: var(--brand);
+}
+
+.brand-progress-no {
+  background: #ffffff;
 }

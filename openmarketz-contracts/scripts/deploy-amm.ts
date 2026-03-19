@@ -25,11 +25,19 @@ async function main(): Promise<void> {
   await contract.waitForDeployment();
 
   const address = await contract.getAddress();
+  const deploymentTx = contract.deploymentTransaction();
+  const deploymentReceipt = deploymentTx ? await deploymentTx.wait() : null;
 
   console.log("OpenMarketzAMM deployed");
   console.log("deployer:", deployer.address);
   console.log("treasury:", treasury);
   console.log("contract:", address);
+  if (deploymentTx) {
+    console.log("txHash:", deploymentTx.hash);
+  }
+  if (deploymentReceipt) {
+    console.log("block:", deploymentReceipt.blockNumber);
+  }
 }
 
 main().catch((error) => {
