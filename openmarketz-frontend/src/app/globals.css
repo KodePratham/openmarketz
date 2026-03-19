@@ -2,14 +2,18 @@
 @import "react-day-picker/dist/style.css";
 
 :root {
-  --background: #ffffff;
+  --background: #fafafa;
   --foreground: #000000;
   --surface: #ffffff;
   --surface-border: #000000;
-  --muted-text: #000000;
+  --muted-text: #333333;
   --brand: #7259ff;
-  --brand-strong: #7259ff;
-  --brand-soft: #ffffff;
+  --brand-strong: #6247e0;
+  --brand-soft: #f0ebff;
+  --accent-1: #ffd700;
+  --accent-2: #ff6b9d;
+  --accent-3: #00d4ff;
+  --accent-4: #00ff88;
 }
 
 @theme inline {
@@ -41,51 +45,56 @@ body {
 }
 
 .shell-card {
-  background: var(--surface);
-  border: 2px solid var(--surface-border);
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 100%);
+  border: 3px solid #000000;
   border-radius: 14px;
-  box-shadow: 5px 5px 0 #000000;
+  box-shadow: 6px 6px 0 #000000;
   animation: gumReveal 240ms ease both;
 }
 
 .cta-button {
-  background: var(--brand);
+  background: linear-gradient(135deg, #7259ff 0%, #9575ff 100%);
   color: #ffffff;
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 10px;
   font-weight: 700;
-  transition: transform 120ms ease, background 120ms ease;
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  box-shadow: 3px 3px 0 #000000;
 }
 
 .cta-button:hover {
-  background: var(--brand-strong);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #6247e0 0%, #8565ff 100%);
+  transform: translateY(-2px);
+  box-shadow: 5px 5px 0 #000000;
 }
 
 .ghost-button {
   background: #ffffff;
   color: #000000;
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 10px;
   font-weight: 700;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  box-shadow: 2px 2px 0 #000000;
 }
 
 .ghost-button:hover {
-  background: #7259ff;
-  color: #ffffff;
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  color: #000000;
+  box-shadow: 4px 4px 0 #000000;
 }
 
 .field {
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 10px;
   background: #ffffff;
   color: #000000;
+  font-weight: 500;
 }
 
 .field:focus-visible {
-  outline: 2px solid #000000;
-  outline-offset: 1px;
+  outline: 3px solid #7259ff;
+  outline-offset: 2px;
 }
 
 .rdp {
@@ -115,7 +124,7 @@ body {
 }
 
 .gum-tag {
-  background: #ffffff;
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
   border: 2px solid #000000;
   border-radius: 999px;
   font-weight: 700;
@@ -123,30 +132,53 @@ body {
 }
 
 .gum-note {
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 10px;
-  background: #7259ff;
+  background: linear-gradient(135deg, #7259ff 0%, #9575ff 100%);
   color: #ffffff;
+  font-weight: 600;
+  padding: 12px 16px;
 }
 
 .gum-feature-card {
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 10px;
-  background: #7259ff;
-  color: #ffffff;
+  color: #000000;
+  font-weight: 600;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  position: relative;
+}
+
+.gum-feature-card:nth-child(1) {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+}
+
+.gum-feature-card:nth-child(2) {
+  background: linear-gradient(135deg, #00d4ff 0%, #00f0ff 100%);
+}
+
+.gum-feature-card:nth-child(3) {
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff8fb1 100%);
+}
+
+.gum-feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 4px 8px 0 #000000;
 }
 
 .market-row {
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 10px;
   padding: 10px 12px;
-  background: #ffffff;
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 100%);
   transition: border-color 120ms ease, background 120ms ease;
+  font-weight: 500;
 }
 
 .market-row:hover {
-  background: #7259ff;
+  background: linear-gradient(135deg, #7259ff 0%, #9575ff 100%);
   color: #ffffff;
+  box-shadow: 4px 4px 0 #000000;
 }
 
 .status-chip {
@@ -176,21 +208,23 @@ body {
 }
 
 .dashboard-skeleton {
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 10px;
-  background: linear-gradient(90deg, #ffffff 0%, #7259ff33 50%, #ffffff 100%);
+  background: linear-gradient(90deg, #ffffff 0%, #f0ebff 50%, #ffd70033 100%);
   background-size: 160% 100%;
   animation: skeletonPulse 1.2s ease-in-out infinite;
 }
 
 .gum-panel {
-  background-image: linear-gradient(145deg, #ffffff 0%, #7259ff1a 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 50%, #ffd70033 100%)!important;
+  border: 3px solid #000000!important;
 }
 
 .oracle-panel {
-  border: 2px solid #000000;
+  border: 3px solid #000000;
   border-radius: 12px;
-  background: #ffffff;
+  background: linear-gradient(135deg, #ffffff 0%, #f0ebff 100%);
+  box-shadow: 4px 4px 0 #000000;
 }
 
 .brand-progress {
