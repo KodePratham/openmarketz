@@ -2,25 +2,25 @@
 @import "react-day-picker/dist/style.css";
 
 :root {
-  --background: #f8f4e8;
-  --foreground: #161616;
-  --surface: #fffdf8;
-  --surface-border: #1f1f1f;
-  --muted-text: #4f4b43;
-  --brand: #ff90e8;
-  --brand-strong: #ff72df;
-  --brand-soft: #ffd9f6;
+  --background: #ffffff;
+  --foreground: #000000;
+  --surface: #ffffff;
+  --surface-border: #000000;
+  --muted-text: #000000;
+  --brand: #7259ff;
+  --brand-strong: #7259ff;
+  --brand-soft: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-instrument-sans);
+  --font-sans: var(--font-space-grotesk);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: linear-gradient(180deg, #fff7df 0%, #f8f4e8 45%, #f6f1e2 100%);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
 }
@@ -44,14 +44,14 @@ body {
   background: var(--surface);
   border: 2px solid var(--surface-border);
   border-radius: 14px;
-  box-shadow: 5px 5px 0 #1f1f1f;
+  box-shadow: 5px 5px 0 #000000;
   animation: gumReveal 240ms ease both;
 }
 
 .cta-button {
   background: var(--brand);
-  color: #111111;
-  border: 2px solid #111111;
+  color: #ffffff;
+  border: 2px solid #000000;
   border-radius: 10px;
   font-weight: 700;
   transition: transform 120ms ease, background 120ms ease;
@@ -63,26 +63,28 @@ body {
 }
 
 .ghost-button {
-  background: #fff;
-  color: #111111;
-  border: 2px solid #111111;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
   border-radius: 10px;
   font-weight: 700;
   transition: background 120ms ease, border-color 120ms ease;
 }
 
 .ghost-button:hover {
-  background: #fff4cc;
+  background: #7259ff;
+  color: #ffffff;
 }
 
 .field {
-  border: 2px solid #1f1f1f;
+  border: 2px solid #000000;
   border-radius: 10px;
-  background: #fffefb;
+  background: #ffffff;
+  color: #000000;
 }
 
 .field:focus-visible {
-  outline: 2px solid #111111;
+  outline: 2px solid #000000;
   outline-offset: 1px;
 }
 
@@ -96,7 +98,13 @@ body {
 }
 
 .gum-hero {
-  background: linear-gradient(135deg, #fffdf8 0%, #fff8e5 100%);
+  background: #7259ff;
+  color: #ffffff;
+}
+
+.gum-hero .text-muted,
+.gum-hero .gum-kicker {
+  color: #ffffff;
 }
 
 .gum-kicker {
@@ -107,47 +115,52 @@ body {
 }
 
 .gum-tag {
-  background: #fff5cc;
-  border: 2px solid #111111;
+  background: #ffffff;
+  border: 2px solid #000000;
   border-radius: 999px;
   font-weight: 700;
+  color: #000000;
 }
 
 .gum-note {
-  border: 2px solid #1f1f1f;
+  border: 2px solid #000000;
   border-radius: 10px;
-  background: #fff7e1;
+  background: #7259ff;
+  color: #ffffff;
 }
 
 .gum-feature-card {
-  border: 2px solid #1f1f1f;
+  border: 2px solid #000000;
   border-radius: 10px;
-  background: #ffffff;
+  background: #7259ff;
+  color: #ffffff;
 }
 
 .market-row {
-  border: 2px solid #1f1f1f;
+  border: 2px solid #000000;
   border-radius: 10px;
   padding: 10px 12px;
-  background: #fffdf8;
+  background: #ffffff;
   transition: border-color 120ms ease, background 120ms ease;
 }
 
 .market-row:hover {
-  background: #fff3ca;
+  background: #7259ff;
+  color: #ffffff;
 }
 
 .status-chip {
   display: inline-flex;
   align-items: center;
   margin-right: 4px;
-  border: 1px solid #1f1f1f;
+  border: 1px solid #000000;
   border-radius: 999px;
   padding: 1px 8px;
   font-weight: 600;
   font-size: 10px;
   letter-spacing: 0.04em;
-  background: #fff4cc;
+  background: #000000;
+  color: #ffffff;
 }
 
 @keyframes skeletonPulse {
@@ -163,13 +176,32 @@ body {
 }
 
 .dashboard-skeleton {
-  border: 2px solid #1f1f1f;
+  border: 2px solid #000000;
   border-radius: 10px;
-  background: linear-gradient(90deg, #fff1c9 0%, #fffef5 50%, #fff1c9 100%);
+  background: linear-gradient(90deg, #ffffff 0%, #7259ff33 50%, #ffffff 100%);
   background-size: 160% 100%;
   animation: skeletonPulse 1.2s ease-in-out infinite;
 }
 
 .gum-panel {
-  background-image: linear-gradient(145deg, #fffdf8 0%, #fff9ea 100%);
+  background-image: linear-gradient(145deg, #ffffff 0%, #7259ff1a 100%);
+}
+
+.oracle-panel {
+  border: 2px solid #000000;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.brand-progress {
+  border: 1px solid #000000;
+  background: #ffffff;
+}
+
+.brand-progress-yes {
+  background: var(--brand);
+}
+
+.brand-progress-no {
+  background: #ffffff;
 }

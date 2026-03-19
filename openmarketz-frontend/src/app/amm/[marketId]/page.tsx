@@ -380,18 +380,18 @@ export default function AmmMarketPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 sm:py-12">
-      <div className="shell-card bg-[linear-gradient(135deg,#fff_0%,#f2e9ff_80%)] p-4 sm:p-6">
+      <div className="shell-card gum-panel p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-bold text-purple-950 sm:text-3xl">AMM Market {openCode || marketKey.toUpperCase()}</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">AMM Market {openCode || marketKey.toUpperCase()}</h1>
           <div className="flex gap-3">
-            <Link href="/" className="rounded-xl border border-purple-300 bg-white px-3 py-2 text-sm font-medium text-purple-900">Home</Link>
+            <Link href="/" className="ghost-button px-3 py-2 text-sm">Home</Link>
             <button onClick={connect} className="cta-button px-3 py-2 text-sm">
               {address ? "Connected" : "Connect"}
             </button>
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-purple-200 bg-white/80 p-3 text-sm text-purple-900">
+        <div className="gum-note mt-4 p-3 text-sm">
           <p>Realtime mode: polling every 2.5s.</p>
           <p>{isRefreshing ? "Refreshing..." : "Stable"}</p>
           <p suppressHydrationWarning>Last updated: {isClient && lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : "-"}</p>
@@ -399,7 +399,7 @@ export default function AmmMarketPage() {
       </div>
 
       {loading ? <p className="text-muted text-sm">Loading...</p> : null}
-      {notFound ? <p className="text-sm font-medium text-purple-900">Market not found for this code.</p> : null}
+      {notFound ? <p className="text-sm font-medium">Market not found for this code.</p> : null}
 
       {market ? (
         <section className="shell-card space-y-4 p-4 sm:p-6">
@@ -409,7 +409,7 @@ export default function AmmMarketPage() {
           <p><strong>Description:</strong> {market.description}</p>
           <p><strong>Creator:</strong> {market.creator}</p>
 
-          <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3 text-sm text-purple-900">
+          <div className="gum-note p-3 text-sm">
             <p suppressHydrationWarning><strong>Close (local):</strong> {isClient ? closeDate?.toLocaleString() : "-"}</p>
             <p><strong>Close (UTC):</strong> {closeDate?.toUTCString()}</p>
             <p><strong>Time to close:</strong> {closeCountdown}</p>
@@ -418,18 +418,18 @@ export default function AmmMarketPage() {
             <p><strong>Time to auto-cancel window:</strong> {deadlineCountdown}</p>
           </div>
 
-          <div className="rounded-xl border border-purple-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between text-sm font-semibold text-purple-900">
+          <div className="oracle-panel p-3">
+            <div className="mb-2 flex items-center justify-between text-sm font-semibold">
               <span>YES Odds: {yesPricePct.toFixed(2)}%</span>
               <span>NO Odds: {noPricePct.toFixed(2)}%</span>
             </div>
-            <div className="h-5 overflow-hidden rounded-full border border-purple-200 bg-purple-100">
+            <div className="brand-progress h-5 overflow-hidden rounded-full">
               <div className="flex h-full">
-                <div className="h-full bg-purple-700" style={{ width: `${yesBarPct}%` }} />
-                <div className="h-full bg-purple-300" style={{ width: `${noBarPct}%` }} />
+                <div className="brand-progress-yes h-full" style={{ width: `${yesBarPct}%` }} />
+                <div className="brand-progress-no h-full" style={{ width: `${noBarPct}%` }} />
               </div>
             </div>
-            <div className="mt-2 flex items-center justify-between text-xs text-purple-800">
+            <div className="mt-2 flex items-center justify-between text-xs">
               <span>YES side confidence</span>
               <span>NO side confidence</span>
             </div>
@@ -441,16 +441,16 @@ export default function AmmMarketPage() {
           <p><strong>Collateral pool:</strong> {formatEther(market.collateralPool)} MON</p>
 
           {isLowLiquidity ? (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="gum-note p-3 text-sm">
               <p><strong>Low liquidity warning:</strong> Pool is below 3 MON.</p>
               <p>{isCreator ? "Top up liquidity to keep trading depth healthy." : "Creator may add more liquidity to improve trade depth."}</p>
             </div>
           ) : null}
 
           {isCreator ? (
-            <div id="liquidity-panel" className="space-y-3 rounded-xl border border-purple-200 bg-purple-50/40 p-3">
+            <div id="liquidity-panel" className="gum-note space-y-3 p-3">
               <p className="text-sm"><strong>Creator Liquidity Top-Up</strong></p>
-              {!canAddLiquidityNow ? <p className="text-sm text-purple-800">Liquidity top-up is available only while market is OPEN.</p> : null}
+              {!canAddLiquidityNow ? <p className="text-sm">Liquidity top-up is available only while market is OPEN.</p> : null}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <input
                   type="number"
@@ -465,7 +465,7 @@ export default function AmmMarketPage() {
                   type="button"
                   disabled={loading || !canAddLiquidityNow}
                   onClick={() => void addLiquidity()}
-                  className="rounded-xl bg-purple-700 px-4 py-2 text-white disabled:opacity-50"
+                  className="cta-button px-4 py-2 disabled:opacity-50"
                 >
                   Add Liquidity
                 </button>
@@ -474,7 +474,7 @@ export default function AmmMarketPage() {
           ) : null}
 
           {position ? (
-            <div className="rounded-xl border border-purple-200 bg-purple-50/40 p-3 text-sm text-purple-900">
+            <div className="gum-note p-3 text-sm">
               <p><strong>Your YES shares:</strong> {formatEther(position.yesShares)}</p>
               <p><strong>Your NO shares:</strong> {formatEther(position.noShares)}</p>
               <p><strong>Your net cash deposited:</strong> {formatEther(position.netCashDeposited)} MON</p>
@@ -482,7 +482,7 @@ export default function AmmMarketPage() {
           ) : null}
 
           <form className="space-y-3" onSubmit={(e) => buy(true, e)}>
-            <label className="block text-sm font-medium text-purple-900">Trade amount (shares)</label>
+            <label className="block text-sm font-medium">Trade amount (shares)</label>
             <input
               type="number"
               step="0.01"
@@ -491,33 +491,33 @@ export default function AmmMarketPage() {
               onChange={(e) => setSharesInput(e.target.value)}
               className="field w-full px-3 py-2"
             />
-            <p className="text-sm text-purple-900">
+            <p className="text-sm">
               Estimated buy cost: YES {formatEther(quoteBuyTotal(parseSharesToWei() || BIG_ZERO, true))} MON, NO {formatEther(quoteBuyTotal(parseSharesToWei() || BIG_ZERO, false))} MON
             </p>
             <div className="flex flex-wrap gap-3">
-              <button disabled={loading || market.status !== 0} onClick={(e) => void buy(true, e)} className="rounded-xl bg-purple-700 px-4 py-2 text-white disabled:opacity-50">Buy YES</button>
-              <button disabled={loading || market.status !== 0} onClick={(e) => void buy(false, e)} className="rounded-xl bg-purple-500 px-4 py-2 text-white disabled:opacity-50">Buy NO</button>
-              <button disabled={loading || market.status !== 0} type="button" onClick={() => void sell(true)} className="rounded-xl bg-purple-900 px-4 py-2 text-white disabled:opacity-50">Sell YES</button>
-              <button disabled={loading || market.status !== 0} type="button" onClick={() => void sell(false)} className="rounded-xl bg-violet-900 px-4 py-2 text-white disabled:opacity-50">Sell NO</button>
+              <button disabled={loading || market.status !== 0} onClick={(e) => void buy(true, e)} className="cta-button px-4 py-2 disabled:opacity-50">Buy YES</button>
+              <button disabled={loading || market.status !== 0} onClick={(e) => void buy(false, e)} className="cta-button px-4 py-2 disabled:opacity-50">Buy NO</button>
+              <button disabled={loading || market.status !== 0} type="button" onClick={() => void sell(true)} className="ghost-button px-4 py-2 disabled:opacity-50">Sell YES</button>
+              <button disabled={loading || market.status !== 0} type="button" onClick={() => void sell(false)} className="ghost-button px-4 py-2 disabled:opacity-50">Sell NO</button>
             </div>
           </form>
 
           {isCreator ? (
-            <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50/40 p-3">
+            <div className="gum-note space-y-2 p-3">
               <p className="text-sm"><strong>Creator Resolve</strong></p>
-              {!canResolveNow ? <p className="text-sm text-purple-800">Resolve unlocks after close time.</p> : null}
+              {!canResolveNow ? <p className="text-sm">Resolve unlocks after close time.</p> : null}
               <div className="flex gap-3">
                 <button
                   disabled={loading || market.status !== 0 || !canResolveNow}
                   onClick={() => setResolveChoice(true)}
-                  className="rounded-xl bg-purple-700 px-4 py-2 text-white disabled:opacity-50"
+                  className="cta-button px-4 py-2 disabled:opacity-50"
                 >
                   Resolve YES
                 </button>
                 <button
                   disabled={loading || market.status !== 0 || !canResolveNow}
                   onClick={() => setResolveChoice(false)}
-                  className="rounded-xl bg-purple-500 px-4 py-2 text-white disabled:opacity-50"
+                  className="ghost-button px-4 py-2 disabled:opacity-50"
                 >
                   Resolve NO
                 </button>
@@ -525,19 +525,19 @@ export default function AmmMarketPage() {
             </div>
           ) : null}
 
-          <button disabled={loading || market.status !== 1} onClick={() => void redeem()} className="rounded-xl bg-purple-800 px-4 py-2 text-white disabled:opacity-50">Redeem Winning Shares</button>
+          <button disabled={loading || market.status !== 1} onClick={() => void redeem()} className="cta-button px-4 py-2 disabled:opacity-50">Redeem Winning Shares</button>
         </section>
       ) : null}
 
       {resolveChoice !== null ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-purple-950/35 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-purple-200 bg-white p-5 shadow-xl">
-            <h2 className="text-lg font-semibold text-purple-950">Confirm Resolution</h2>
-            <p className="mt-2 text-sm text-purple-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 p-4">
+          <div className="oracle-panel w-full max-w-md p-5">
+            <h2 className="text-lg font-semibold">Confirm Resolution</h2>
+            <p className="mt-2 text-sm">
               You are about to resolve this market as <strong>{resolveChoice ? "YES" : "NO"}</strong>. This action is final.
             </p>
             <div className="mt-4 flex justify-end gap-3">
-              <button onClick={() => setResolveChoice(null)} className="rounded-xl border border-purple-300 px-3 py-2 text-sm text-purple-900" type="button">Cancel</button>
+              <button onClick={() => setResolveChoice(null)} className="ghost-button px-3 py-2 text-sm" type="button">Cancel</button>
               <button
                 onClick={() => {
                   void resolve(resolveChoice);
