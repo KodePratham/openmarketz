@@ -2,14 +2,14 @@
 @import "react-day-picker/dist/style.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #17142b;
-  --surface: #ffffff;
-  --surface-border: #d8d2ff;
-  --muted-text: #5e5884;
-  --brand: #6e54ff;
-  --brand-strong: #5f49dd;
-  --brand-soft: #f2efff;
+  --background: #f8f4e8;
+  --foreground: #161616;
+  --surface: #fffdf8;
+  --surface-border: #1f1f1f;
+  --muted-text: #4f4b43;
+  --brand: #ff90e8;
+  --brand-strong: #ff72df;
+  --brand-soft: #ffd9f6;
 }
 
 @theme inline {
@@ -20,15 +20,13 @@
 }
 
 body {
-  background:
-    radial-gradient(circle at 0% 0%, #f2efff 0%, #ffffff 48%, #ffffff 100%),
-    var(--background);
+  background: linear-gradient(180deg, #fff7df 0%, #f8f4e8 45%, #f6f1e2 100%);
   color: var(--foreground);
-  font-family: var(--font-instrument-sans), "Segoe UI", sans-serif;
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
 }
 
 .font-display {
-  font-family: var(--font-libre-baskerville), Georgia, serif;
+  font-family: var(--font-fraunces), Georgia, serif;
 }
 
 @keyframes gumReveal {
@@ -42,58 +40,49 @@ body {
   }
 }
 
-@keyframes gumFloat {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
-  50% {
-    transform: translate3d(0, -8px, 0) rotate(2deg);
-  }
-}
-
 .shell-card {
   background: var(--surface);
-  border: 1px solid var(--surface-border);
+  border: 2px solid var(--surface-border);
   border-radius: 14px;
+  box-shadow: 5px 5px 0 #1f1f1f;
   animation: gumReveal 240ms ease both;
 }
 
 .cta-button {
   background: var(--brand);
-  color: #ffffff;
-  border: 1px solid var(--brand);
+  color: #111111;
+  border: 2px solid #111111;
   border-radius: 10px;
-  font-weight: 600;
-  transition: background 120ms ease;
+  font-weight: 700;
+  transition: transform 120ms ease, background 120ms ease;
 }
 
 .cta-button:hover {
   background: var(--brand-strong);
+  transform: translateY(-1px);
 }
 
 .ghost-button {
   background: #fff;
-  color: var(--brand-strong);
-  border: 1px solid var(--surface-border);
+  color: #111111;
+  border: 2px solid #111111;
   border-radius: 10px;
-  font-weight: 600;
+  font-weight: 700;
   transition: background 120ms ease, border-color 120ms ease;
 }
 
 .ghost-button:hover {
-  background: var(--brand-soft);
-  border-color: var(--brand);
+  background: #fff4cc;
 }
 
 .field {
-  border: 1px solid #d0c9ff;
+  border: 2px solid #1f1f1f;
   border-radius: 10px;
-  background: #fff;
+  background: #fffefb;
 }
 
 .field:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid #111111;
   outline-offset: 1px;
 }
 
@@ -107,81 +96,58 @@ body {
 }
 
 .gum-hero {
-  background: white;
-  position: relative;
-  isolation: isolate;
-}
-
-.gum-hero::before,
-.gum-hero::after {
-  content: "";
-  position: absolute;
-  border: 1px solid #d0c9ff;
-  border-radius: 999px;
-  z-index: -1;
-  animation: gumFloat 3.8s ease-in-out infinite;
-}
-
-.gum-hero::before {
-  width: 96px;
-  height: 96px;
-  right: 18px;
-  top: 12px;
-  background: #f2efff;
-}
-
-.gum-hero::after {
-  width: 54px;
-  height: 54px;
-  right: 112px;
-  top: 74px;
-  background: #6e54ff;
-  animation-delay: 0.9s;
+  background: linear-gradient(135deg, #fffdf8 0%, #fff8e5 100%);
 }
 
 .gum-kicker {
-  letter-spacing: 0.2em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .gum-tag {
-  background: #fff;
-  border: 1px solid #d0c9ff;
+  background: #fff5cc;
+  border: 2px solid #111111;
   border-radius: 999px;
+  font-weight: 700;
 }
 
 .gum-note {
-  border: 1px solid #d0c9ff;
+  border: 2px solid #1f1f1f;
   border-radius: 10px;
-  background: #f2efff;
+  background: #fff7e1;
+}
+
+.gum-feature-card {
+  border: 2px solid #1f1f1f;
+  border-radius: 10px;
+  background: #ffffff;
 }
 
 .market-row {
-  border: 1px solid #d0c9ff;
+  border: 2px solid #1f1f1f;
   border-radius: 10px;
   padding: 10px 12px;
-  background: #fff;
+  background: #fffdf8;
   transition: border-color 120ms ease, background 120ms ease;
 }
 
 .market-row:hover {
-  background: #f7f4ff;
-  border-color: #a89cff;
+  background: #fff3ca;
 }
 
 .status-chip {
   display: inline-flex;
   align-items: center;
   margin-right: 4px;
-  border: 1px solid #cbc3ff;
+  border: 1px solid #1f1f1f;
   border-radius: 999px;
   padding: 1px 8px;
   font-weight: 600;
   font-size: 10px;
   letter-spacing: 0.04em;
-  background: #f7f4ff;
+  background: #fff4cc;
 }
 
 @keyframes skeletonPulse {
@@ -197,13 +163,13 @@ body {
 }
 
 .dashboard-skeleton {
-  border: 1px solid #d0c9ff;
+  border: 2px solid #1f1f1f;
   border-radius: 10px;
-  background: linear-gradient(90deg, #f2efff 0%, #ffffff 50%, #f2efff 100%);
+  background: linear-gradient(90deg, #fff1c9 0%, #fffef5 50%, #fff1c9 100%);
   background-size: 160% 100%;
   animation: skeletonPulse 1.2s ease-in-out infinite;
 }
 
 .gum-panel {
-  background-image: linear-gradient(145deg, #ffffff 0%, #faf8ff 100%);
+  background-image: linear-gradient(145deg, #fffdf8 0%, #fff9ea 100%);
 }

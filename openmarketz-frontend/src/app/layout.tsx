@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Instrument_Sans, Libre_Baskerville } from "next/font/google";
+import { Fraunces, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const instrumentSans = Instrument_Sans({
-  variable: "--font-instrument-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
   display: "swap",
 });
 
-const libreBaskerville = Libre_Baskerville({
-  variable: "--font-libre-baskerville",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
   weight: ["700"],
   display: "swap",
@@ -33,10 +33,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${instrumentSans.variable} ${libreBaskerville.variable} ${geistMono.variable} antialiased`}
+        className={`${spaceGrotesk.variable} ${fraunces.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="border-b border-[#d8d2ff] bg-[#f2efff] px-4 py-3 text-center text-sm font-medium text-[#2a1f66]">
-          We&apos;re a permissionless prediction markets platform operating on MONAD testnet. We hope to see a lot of changes in the upcoming days, if you wish to contribute to the project or help it get on the mainnet please contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-[#6e54ff]">@prathamkode</a>. We hope you enjoy!
+        <div className="border-b-2 border-[#1f1f1f] bg-[#fff3c2] px-4 py-3 text-center text-sm font-semibold text-[#111111]">
+          We&apos;re a permissionless prediction markets platform operating on MONAD testnet. More updates are shipping quickly. If you want to contribute or help us get to mainnet, contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-[#3b3b3b]">@prathamkode</a>.
         </div>
         {children}
       </body>
