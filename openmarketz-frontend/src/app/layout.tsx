@@ -23,6 +23,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "OpenMarketz",
   description: "Prediction markets on Monad",
+  icons: {
+    icon: "/Open-logo.png",
+    shortcut: "/Open-logo.png",
+    apple: "/Open-logo.png",
+  },
 };
 
 export default function RootLayout({

@@ -1,8 +1,17 @@
+import Image from "next/image";
 import Link from "next/link";
 export default function Home() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 sm:py-12">
       <header className="shell-card gum-hero p-6 sm:p-10">
+        <Image
+          src="/Open-logo.png"
+          alt="OpenMarketz"
+          width={180}
+          height={180}
+          priority
+          className="h-auto w-28 sm:w-36"
+        />
         <p className="gum-kicker">OpenMarketz</p>
         <h1 className="font-display mt-3 text-4xl font-black leading-tight sm:text-6xl">You are the oracle</h1>
         <p className="text-muted mt-4 max-w-2xl text-base">Trade and create crisp prediction markets on Monad with one code, one market, one truth source.</p>
