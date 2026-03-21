@@ -142,4 +142,4 @@ V1 and V2 contracts coexist, with frontend flows focused on V2 AMM routes (`/amm
 
 ## License
 
-Add your preferred license in this repository root (for example, MIT).
+OpenMarketz is open source software licensed under the MIT License.
