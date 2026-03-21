@@ -30,6 +30,16 @@ No listing process. No gatekeepers. No permission needed.
 4. **Resolve** — When the event concludes, the creator resolves the market as YES or NO.
 5. **Payout** — Smart contract automatically distributes winnings. OpenMarketz takes a small protocol fee.
 
+### AMM Share Mechanics (Current Model)
+
+- Buying YES or NO mints new shares on that side; selling burns shares from that side.
+- Prices are implied from live share supply, so odds move as participants buy and sell.
+- Buy trades add gross trade value into the collateral pool (trade fee is handled separately).
+- On resolution, winning-side payout per share is computed from collateral pool and winning share supply snapshot.
+- Winner fee is charged only on profit, not on principal.
+
+This means share supply is intentionally elastic. New shares being created on buys is expected behavior in the AMM model.
+
 ---
 
 ## The Oracle Model
