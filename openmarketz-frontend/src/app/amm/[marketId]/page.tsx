@@ -31,9 +31,23 @@ type PositionView = {
 
 const BIG_ZERO = BigInt(0);
 const BPS_DENOM = BigInt(10_000);
+const SHARE_SCALE = BigInt("1000000000000000000");
 const TRADE_FEE_BPS = BigInt(50);
+const WINNER_FEE_BPS = BigInt(200);
 const POLL_MS = 2500;
 const LOW_LIQUIDITY_THRESHOLD_WEI = parseEther("3");
+
+type BuyQuoteBreakdown = {
+  grossCost: bigint;
+  tradeFee: bigint;
+  totalCost: bigint;
+};
+
+type BuyWinningEstimate = {
+  netPayout: bigint;
+  isProfit: boolean;
+  netProfitAbs: bigint;
+};
 
 function formatCountdown(targetUnix: number, nowUnix: number): string {
   const delta = targetUnix - nowUnix;
@@ -67,6 +81,7 @@ export default function AmmMarketPage() {
   const [notFound, setNotFound] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [sharesInput, setSharesInput] = useState("1");
+  const [selectedBuySideYes, setSelectedBuySideYes] = useState(true);
   const [liquidityInput, setLiquidityInput] = useState("1");
   const [priceYesBps, setPriceYesBps] = useState<bigint>(BIG_ZERO);
   const [priceNoBps, setPriceNoBps] = useState<bigint>(BIG_ZERO);
@@ -218,11 +233,44 @@ export default function AmmMarketPage() {
     }
   }
 
-  function quoteBuyTotal(sharesWei: bigint, yesSide: boolean): bigint {
+  function quoteBuyBreakdown(sharesWei: bigint, yesSide: boolean): BuyQuoteBreakdown {
     const priceBps = yesSide ? priceYesBps : priceNoBps;
     const gross = (sharesWei * priceBps) / BPS_DENOM;
-    const fee = (gross * TRADE_FEE_BPS) / BPS_DENOM;
-    return gross + fee;
+    const tradeFee = (gross * TRADE_FEE_BPS) / BPS_DENOM;
+    return {
+      grossCost: gross,
+      tradeFee,
+      totalCost: gross + tradeFee,
+    };
+  }
+
+  function quoteBuyTotal(sharesWei: bigint, yesSide: boolean): bigint {
+    return quoteBuyBreakdown(sharesWei, yesSide).totalCost;
+  }
+
+  function quoteWinningEstimate(sharesWei: bigint, yesSide: boolean): BuyWinningEstimate | null {
+    if (!market || sharesWei <= BIG_ZERO) return null;
+
+    const sideSupply = yesSide ? market.yesSharesSupply : market.noSharesSupply;
+    const projectedWinningSupply = sideSupply + sharesWei;
+    if (projectedWinningSupply <= BIG_ZERO) return null;
+
+    const buyQuote = quoteBuyBreakdown(sharesWei, yesSide);
+    const projectedPool = market.collateralPool + buyQuote.grossCost;
+    const projectedPayoutPerShare = (projectedPool * SHARE_SCALE) / projectedWinningSupply;
+    const grossPayout = (sharesWei * projectedPayoutPerShare) / SHARE_SCALE;
+
+    const grossProfit = grossPayout > buyQuote.totalCost ? grossPayout - buyQuote.totalCost : BIG_ZERO;
+    const winnerFee = (grossProfit * WINNER_FEE_BPS) / BPS_DENOM;
+    const netPayout = grossPayout - winnerFee;
+    const isProfit = netPayout >= buyQuote.totalCost;
+    const netProfitAbs = isProfit ? netPayout - buyQuote.totalCost : buyQuote.totalCost - netPayout;
+
+    return {
+      netPayout,
+      isProfit,
+      netProfitAbs,
+    };
   }
 
   async function buy(yesSide: boolean, e: FormEvent) {
@@ -377,6 +425,13 @@ export default function AmmMarketPage() {
   const deadlineDate = market ? new Date(Number(market.resolveDeadline) * 1000) : null;
   const closeCountdown = market ? formatCountdown(Number(market.closeTime), nowUnix) : "-";
   const deadlineCountdown = market ? formatCountdown(Number(market.resolveDeadline), nowUnix) : "-";
+  const parsedSharesWei = parseSharesToWei();
+  const estimatedYesCost = quoteBuyTotal(parsedSharesWei || BIG_ZERO, true);
+  const estimatedNoCost = quoteBuyTotal(parsedSharesWei || BIG_ZERO, false);
+  const selectedWinningEstimate =
+    market && market.status === 0 && parsedSharesWei
+      ? quoteWinningEstimate(parsedSharesWei, selectedBuySideYes)
+      : null;
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 sm:py-12">
@@ -481,7 +536,7 @@ export default function AmmMarketPage() {
             </div>
           ) : null}
 
-          <form className="space-y-3" onSubmit={(e) => buy(true, e)}>
+          <form className="space-y-3">
             <label className="block text-sm font-medium">Trade amount (shares)</label>
             <input
               type="number"
@@ -492,11 +547,66 @@ export default function AmmMarketPage() {
               className="field w-full px-3 py-2"
             />
             <p className="text-sm">
-              Estimated buy cost: YES {formatEther(quoteBuyTotal(parseSharesToWei() || BIG_ZERO, true))} MON, NO {formatEther(quoteBuyTotal(parseSharesToWei() || BIG_ZERO, false))} MON
+              Estimated buy cost: YES {formatEther(estimatedYesCost)} MON, NO {formatEther(estimatedNoCost)} MON
             </p>
+
+            <div className="gum-note space-y-2 p-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Preview side:</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBuySideYes(true)}
+                  className={`px-2 py-1 text-xs ${selectedBuySideYes ? "cta-button" : "ghost-button"}`}
+                >
+                  YES
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBuySideYes(false)}
+                  className={`px-2 py-1 text-xs ${!selectedBuySideYes ? "cta-button" : "ghost-button"}`}
+                >
+                  NO
+                </button>
+              </div>
+
+              {selectedWinningEstimate ? (
+                <>
+                  <p>
+                    You win about <strong>{formatEther(selectedWinningEstimate.netPayout)} MON</strong> if {selectedBuySideYes ? "YES" : "NO"} resolves.
+                  </p>
+                  <p>
+                    Estimated net profit: <strong>{selectedWinningEstimate.isProfit ? "+" : "-"}{formatEther(selectedWinningEstimate.netProfitAbs)} MON</strong>
+                  </p>
+                  <p className="text-xs">
+                    Estimate uses current pool/supply and your post-buy position. Final payout can change as others trade before resolution.
+                  </p>
+                </>
+              ) : (
+                <p>Enter a valid shares amount to preview winnings.</p>
+              )}
+            </div>
+
             <div className="flex flex-wrap gap-3">
-              <button disabled={loading || market.status !== 0} onClick={(e) => void buy(true, e)} className="cta-button px-4 py-2 disabled:opacity-50">Buy YES</button>
-              <button disabled={loading || market.status !== 0} onClick={(e) => void buy(false, e)} className="cta-button px-4 py-2 disabled:opacity-50">Buy NO</button>
+              <button
+                disabled={loading || market.status !== 0}
+                onClick={(e) => {
+                  setSelectedBuySideYes(true);
+                  void buy(true, e);
+                }}
+                className="cta-button px-4 py-2 disabled:opacity-50"
+              >
+                Buy YES
+              </button>
+              <button
+                disabled={loading || market.status !== 0}
+                onClick={(e) => {
+                  setSelectedBuySideYes(false);
+                  void buy(false, e);
+                }}
+                className="cta-button px-4 py-2 disabled:opacity-50"
+              >
+                Buy NO
+              </button>
               <button disabled={loading || market.status !== 0} type="button" onClick={() => void sell(true)} className="ghost-button px-4 py-2 disabled:opacity-50">Sell YES</button>
               <button disabled={loading || market.status !== 0} type="button" onClick={() => void sell(false)} className="ghost-button px-4 py-2 disabled:opacity-50">Sell NO</button>
             </div>
