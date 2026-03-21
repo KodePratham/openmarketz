@@ -1,17 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 export default function Home() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 sm:py-12">
       <header className="shell-card gum-hero p-6 sm:p-10">
-        <Image
-          src="/Open-logo.png"
-          alt="OpenMarketz"
-          width={180}
-          height={180}
-          priority
-          className="h-auto w-28 sm:w-36"
-        />
         <p className="gum-kicker">OpenMarketz</p>
         <h1 className="font-display mt-3 text-4xl font-black leading-tight sm:text-6xl">You are the oracle</h1>
         <p className="text-muted mt-4 max-w-2xl text-base">Trade and create crisp prediction markets on Monad with one code, one market, one truth source.</p>
@@ -53,6 +44,12 @@ export default function Home() {
           <p className="text-muted mt-2 text-sm">Paste an OPEN code, trade YES or NO, track your positions, and redeem when resolved.</p>
           <Link href="/open" className="cta-button mt-4 inline-flex px-4 py-2 text-sm">Open a Market</Link>
         </article>
+      </section>
+
+      <section className="shell-card gum-panel p-5 sm:p-6">
+        <h2 className="font-display text-2xl font-black">Legal</h2>
+        <p className="text-muted mt-2 text-sm">Review our terms, including testnet and open-source disclosures.</p>
+        <Link href="/terms" className="ghost-button mt-4 inline-flex px-4 py-2 text-sm">Terms &amp; Conditions</Link>
       </section>
     </main>
   );

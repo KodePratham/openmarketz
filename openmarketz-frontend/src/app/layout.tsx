@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenMarketz",
+  title: "OpenMarketz | Testnet Prediction Markets",
   description: "Prediction markets on Monad",
   icons: {
     icon: "/Open-logo.png",
