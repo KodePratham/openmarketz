@@ -44,7 +44,6 @@ type BuyQuoteBreakdown = {
 };
 
 type BuyWinningEstimate = {
-  netPayout: bigint;
   isProfit: boolean;
   netProfitAbs: bigint;
 };
@@ -267,7 +266,6 @@ export default function AmmMarketPage() {
     const netProfitAbs = isProfit ? netPayout - buyQuote.totalCost : buyQuote.totalCost - netPayout;
 
     return {
-      netPayout,
       isProfit,
       netProfitAbs,
     };
@@ -571,9 +569,6 @@ export default function AmmMarketPage() {
 
               {selectedWinningEstimate ? (
                 <>
-                  <p>
-                    You win about <strong>{formatEther(selectedWinningEstimate.netPayout)} MON</strong> if {selectedBuySideYes ? "YES" : "NO"} resolves.
-                  </p>
                   <p>
                     Estimated net profit: <strong>{selectedWinningEstimate.isProfit ? "+" : "-"}{formatEther(selectedWinningEstimate.netProfitAbs)} MON</strong>
                   </p>
