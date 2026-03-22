@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Fraunces, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
@@ -63,6 +64,7 @@ export default function RootLayout({
           We&apos;re a permissionless prediction markets platform operating on MONAD testnet. More updates are shipping quickly. If you want to contribute or help us get to mainnet, contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">@prathamkode</a>.
         </div>
         {children}
+        <Analytics />
       </body>
     </html>
   );
