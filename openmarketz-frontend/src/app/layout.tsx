@@ -22,9 +22,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenMarketz | Testnet Prediction Markets",
+  title: {
+    default: "OpenMarketz | Testnet Prediction Markets",
+    template: "%s | OpenMarketz",
+  },
   description: "Prediction markets on Monad",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  keywords: ["prediction markets", "Monad", "AMM", "OpenMarketz", "testnet"],
+  applicationName: "OpenMarketz",
   icons: {
     icon: "/Open-logo.png",
     shortcut: "/Open-logo.png",
@@ -33,6 +45,9 @@ export const metadata: Metadata = {
   openGraph: {
     title: "OpenMarketz | Testnet Prediction Markets",
     description: "Prediction markets on Monad",
+    url: "/",
+    siteName: "OpenMarketz",
+    type: "website",
     images: [
       {
         url: "/OpenmarketzOnMonad.png",
@@ -46,6 +61,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "OpenMarketz | Testnet Prediction Markets",
     description: "Prediction markets on Monad",
+    creator: "@prathamkode",
     images: ["/OpenmarketzOnMonad.png"],
   },
 };
