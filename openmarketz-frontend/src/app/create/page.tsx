@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { DayPicker } from "react-day-picker";
-import { parseEther } from "ethers";
+import { parseUnits } from "ethers";
 import { connectMetaMask } from "@/lib/wallet/metamask";
-import { getAmmWriteContract } from "@/lib/contracts/openmarketzAmm";
+import {
+  COLLATERAL_DECIMALS,
+  OPENMARKETZ_AMM_ADDRESS,
+  getAmmWriteContract,
+  getCollateralWriteContract,
+} from "@/lib/contracts/openmarketzAmm";
 
 type EthereumAccountsListener = (accounts: string[]) => void;
 type EthereumLike = {
@@ -82,14 +87,14 @@ export default function CreatePage() {
 
     let seedValue;
     try {
-      seedValue = parseEther(seed || "0");
+      seedValue = parseUnits(seed || "0", COLLATERAL_DECIMALS);
     } catch {
-      setStatus("Seed must be a valid MON value.");
+      setStatus("Seed must be a valid USDC value.");
       return;
     }
 
-    if (seedValue < parseEther("2")) {
-      setStatus("AMM requires at least 2 MON seed.");
+    if (seedValue < parseUnits("2", COLLATERAL_DECIMALS)) {
+      setStatus("AMM requires at least 2 USDC seed.");
       return;
     }
 
@@ -109,11 +114,20 @@ export default function CreatePage() {
       const wallet = await connectMetaMask();
       setAddress(wallet.address);
       const signer = await wallet.provider.getSigner();
+      const usdc = getCollateralWriteContract(signer);
       const contract = getAmmWriteContract(signer);
 
-      const tx = await contract.createMarket(question.trim(), description.trim(), closeTimestamp, {
-        value: seedValue,
-      });
+      if (!OPENMARKETZ_AMM_ADDRESS) {
+        throw new Error("NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS is not set");
+      }
+
+      const allowance = await usdc.allowance(wallet.address, OPENMARKETZ_AMM_ADDRESS);
+      if (allowance < seedValue) {
+        const approveTx = await usdc.approve(OPENMARKETZ_AMM_ADDRESS, seedValue);
+        await approveTx.wait();
+      }
+
+      const tx = await contract.createMarket(question.trim(), description.trim(), closeTimestamp, seedValue);
       const receipt = await tx.wait();
 
       const createdEvent = receipt.logs
@@ -214,7 +228,7 @@ export default function CreatePage() {
               ) : null}
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium">Seed MON (min 2)</label>
+                <label className="mb-1.5 block text-sm font-medium">Seed USDC (min 2)</label>
                 <input type="number" step="0.01" min="2" value={seed} onChange={(e) => setSeed(e.target.value)} className="field w-full px-3 py-2.5" />
               </div>
             </div>

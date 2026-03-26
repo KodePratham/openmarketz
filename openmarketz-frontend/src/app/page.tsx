@@ -5,7 +5,7 @@ export default function Home() {
       <header className="shell-card gum-hero p-6 sm:p-10">
         <p className="gum-kicker">OpenMarketz</p>
         <h1 className="font-display mt-3 text-4xl font-black leading-tight sm:text-6xl">You are the oracle</h1>
-        <p className="text-muted mt-4 max-w-2xl text-base">Trade and create crisp prediction markets on Monad with one code, one market, one truth source.</p>
+        <p className="text-muted mt-4 max-w-2xl text-base">Trade and create crisp prediction markets on Sepolia with USDC collateral and one OPEN code per market.</p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/create" className="cta-button px-5 py-2.5 text-sm">Create Market</Link>
           <Link href="/open" className="ghost-button px-5 py-2.5 text-sm">Open by Code</Link>

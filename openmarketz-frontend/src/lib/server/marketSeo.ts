@@ -78,7 +78,7 @@ export async function getMarketSeoSnapshot(marketParam: string): Promise<MarketS
 
     const question = sanitizeText(String(market.question || "Untitled market"), 140);
     const description = sanitizeText(
-      String(market.description || "Trade this prediction market on Monad testnet."),
+      String(market.description || "Trade this prediction market on Sepolia with USDC collateral."),
       280,
     );
 

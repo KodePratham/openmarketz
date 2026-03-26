@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract OpenMarketzAMM is ReentrancyGuard {
     uint256 public constant FEE_DENOMINATOR = 10_000;
     uint256 public constant CODE_MIN = 1_000_000_000;
     uint256 public constant CODE_RANGE = 9_000_000_000;
-    uint256 public constant MIN_CREATION_SEED = 2 ether;
+    uint256 public constant MIN_CREATION_SEED = 2_000_000;
     uint256 public constant TRADE_FEE_BPS = 50;
     uint256 public constant TREASURY_TRADE_FEE_BPS = 3_000;
     uint256 public constant LP_TRADE_FEE_BPS = 7_000;
     uint256 public constant WINNER_FEE_BPS = 200;
-    uint256 public constant SHARE_SCALE = 1e18;
+    uint256 public constant SHARE_SCALE = 1e6;
     uint256 public constant RESOLUTION_GRACE_PERIOD = 24 hours;
 
     enum MarketStatus {
@@ -54,6 +55,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
     uint256 public nextMarketId = 1;
     address public treasury;
+    IERC20 public immutable collateralToken;
     uint256 private entropyNonce;
 
     mapping(uint256 => Market) private markets;
@@ -119,19 +121,26 @@ contract OpenMarketzAMM is ReentrancyGuard {
     error NotCanceled();
     error RefundAlreadyClaimed();
     error NothingToClaim();
+    error InvalidCollateralToken();
+    error TransferFailed();
+    error TransferFromFailed();
+    error SlippageExceeded();
 
-    constructor(address initialTreasury) {
+    constructor(address initialTreasury, address collateralTokenAddress) {
         if (initialTreasury == address(0)) revert InvalidTreasury();
+        if (collateralTokenAddress == address(0)) revert InvalidCollateralToken();
         treasury = initialTreasury;
+        collateralToken = IERC20(collateralTokenAddress);
     }
 
-    function createMarket(string calldata question, string calldata description, uint64 closeTime)
+    function createMarket(string calldata question, string calldata description, uint64 closeTime, uint256 seedCollateral)
         external
-        payable
         returns (uint256 marketId)
     {
         if (closeTime <= block.timestamp) revert InvalidCloseTime();
-        if (msg.value < MIN_CREATION_SEED) revert InvalidSeedAmount();
+        if (seedCollateral < MIN_CREATION_SEED) revert InvalidSeedAmount();
+
+        _safeTransferFrom(msg.sender, address(this), seedCollateral);
 
         marketId = nextMarketId;
         nextMarketId += 1;
@@ -153,9 +162,9 @@ contract OpenMarketzAMM is ReentrancyGuard {
             status: MarketStatus.OPEN,
             yesSharesSupply: bootstrapShares,
             noSharesSupply: bootstrapShares,
-            collateralPool: msg.value,
-            totalLpShares: msg.value,
-            lmsrB: msg.value,
+            collateralPool: seedCollateral,
+            totalLpShares: seedCollateral,
+            lmsrB: seedCollateral,
             treasuryTradeFeesAccrued: 0,
             lpTradeFeesAccrued: 0,
             treasuryWinnerFeesAccrued: 0,
@@ -166,41 +175,49 @@ contract OpenMarketzAMM is ReentrancyGuard {
         TraderPosition storage creatorPosition = traderPositions[marketId][msg.sender];
         creatorPosition.yesShares = bootstrapShares;
         creatorPosition.noShares = bootstrapShares;
-        creatorPosition.yesCostBasis = msg.value / 2;
-        creatorPosition.noCostBasis = msg.value - creatorPosition.yesCostBasis;
-        creatorPosition.netCashDeposited = msg.value;
+        creatorPosition.yesCostBasis = seedCollateral / 2;
+        creatorPosition.noCostBasis = seedCollateral - creatorPosition.yesCostBasis;
+        creatorPosition.netCashDeposited = seedCollateral;
 
-        lpShares[marketId][msg.sender] = msg.value;
+        lpShares[marketId][msg.sender] = seedCollateral;
         _trackCreatedMarket(msg.sender, marketId);
         _trackParticipation(msg.sender, marketId);
 
-        emit MarketCreated(marketId, code, msg.sender, question, closeTime, msg.value);
+        emit MarketCreated(marketId, code, msg.sender, question, closeTime, seedCollateral);
     }
 
-    function addLiquidity(uint256 marketId) external payable returns (uint256 mintedShares) {
+    function addLiquidity(uint256 marketId, uint256 amount) external returns (uint256 mintedShares) {
         Market storage market = _openMarket(marketId);
         if (msg.sender != market.creator) revert NotCreator();
-        if (msg.value == 0) revert InvalidSeedAmount();
+        if (amount == 0) revert InvalidSeedAmount();
+
+        _safeTransferFrom(msg.sender, address(this), amount);
 
         uint256 poolBefore = market.collateralPool;
         if (poolBefore == 0) revert InsufficientPoolLiquidity();
 
-        mintedShares = (msg.value * market.totalLpShares) / poolBefore;
-        if (mintedShares == 0) mintedShares = msg.value;
+        mintedShares = (amount * market.totalLpShares) / poolBefore;
+        if (mintedShares == 0) mintedShares = amount;
 
-        market.collateralPool += msg.value;
+        market.collateralPool += amount;
         market.totalLpShares += mintedShares;
         lpShares[marketId][msg.sender] += mintedShares;
 
-        emit LiquidityAdded(marketId, msg.sender, msg.value, mintedShares);
+        emit LiquidityAdded(marketId, msg.sender, amount, mintedShares);
     }
 
-    function buyYes(uint256 marketId, uint256 shares) external payable returns (uint256 grossCost, uint256 fee) {
-        return _buy(marketId, true, shares);
+    function buyYes(uint256 marketId, uint256 shares, uint256 maxCost)
+        external
+        returns (uint256 grossCost, uint256 fee)
+    {
+        return _buy(marketId, true, shares, maxCost);
     }
 
-    function buyNo(uint256 marketId, uint256 shares) external payable returns (uint256 grossCost, uint256 fee) {
-        return _buy(marketId, false, shares);
+    function buyNo(uint256 marketId, uint256 shares, uint256 maxCost)
+        external
+        returns (uint256 grossCost, uint256 fee)
+    {
+        return _buy(marketId, false, shares, maxCost);
     }
 
     function sellYes(uint256 marketId, uint256 shares) external nonReentrant returns (uint256 grossProceeds, uint256 fee) {
@@ -267,8 +284,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
             claimableTreasuryWinnerFees[marketId] += winnerFee;
         }
 
-        (bool ok, ) = payable(msg.sender).call{value: netPayout}("");
-        require(ok, "PAYOUT_TRANSFER_FAILED");
+        _safeTransfer(msg.sender, netPayout);
 
         emit WinnerRedeemed(marketId, msg.sender, grossPayout, winnerFee, netPayout);
     }
@@ -309,8 +325,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
             market.collateralPool = 0;
         }
 
-        (bool ok, ) = payable(msg.sender).call{value: amount}("");
-        require(ok, "REFUND_TRANSFER_FAILED");
+        _safeTransfer(msg.sender, amount);
 
         emit RefundClaimed(marketId, msg.sender, amount);
     }
@@ -323,8 +338,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
         claimableTreasuryTradeFees[marketId] = 0;
 
-        (bool ok, ) = payable(msg.sender).call{value: amount}("");
-        require(ok, "TREASURY_TRADE_FEE_TRANSFER_FAILED");
+        _safeTransfer(msg.sender, amount);
 
         emit TreasuryTradeFeesClaimed(marketId, amount, msg.sender);
     }
@@ -337,8 +351,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
         claimableTreasuryWinnerFees[marketId] = 0;
 
-        (bool ok, ) = payable(msg.sender).call{value: amount}("");
-        require(ok, "TREASURY_WINNER_FEE_TRANSFER_FAILED");
+        _safeTransfer(msg.sender, amount);
 
         emit TreasuryWinnerFeesClaimed(marketId, amount, msg.sender);
     }
@@ -353,8 +366,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
         claimableLpTradeFees[marketId] = 0;
 
-        (bool ok, ) = payable(msg.sender).call{value: amount}("");
-        require(ok, "LP_FEE_TRANSFER_FAILED");
+        _safeTransfer(msg.sender, amount);
 
         emit CreatorLpFeesClaimed(marketId, amount, msg.sender);
     }
@@ -399,7 +411,10 @@ contract OpenMarketzAMM is ReentrancyGuard {
         if (priceBps > 9_900) priceBps = 9_900;
     }
 
-    function _buy(uint256 marketId, bool yesSide, uint256 shares) private returns (uint256 grossCost, uint256 fee) {
+    function _buy(uint256 marketId, bool yesSide, uint256 shares, uint256 maxCost)
+        private
+        returns (uint256 grossCost, uint256 fee)
+    {
         if (shares == 0) revert InvalidShareAmount();
 
         Market storage market = _openMarket(marketId);
@@ -410,7 +425,9 @@ contract OpenMarketzAMM is ReentrancyGuard {
         fee = (grossCost * TRADE_FEE_BPS) / FEE_DENOMINATOR;
         uint256 totalCost = grossCost + fee;
 
-        if (msg.value != totalCost) revert IncorrectPayment();
+        if (totalCost > maxCost) revert SlippageExceeded();
+
+        _safeTransferFrom(msg.sender, address(this), totalCost);
 
         TraderPosition storage position = traderPositions[marketId][msg.sender];
         _trackParticipation(msg.sender, marketId);
@@ -472,8 +489,7 @@ contract OpenMarketzAMM is ReentrancyGuard {
         market.collateralPool -= grossProceeds;
         _accrueTradeFees(marketId, market, fee);
 
-        (bool ok, ) = payable(msg.sender).call{value: netProceeds}("");
-        require(ok, "SELL_TRANSFER_FAILED");
+        _safeTransfer(msg.sender, netProceeds);
 
         emit SharesSold(marketId, msg.sender, yesSide, shares, grossProceeds, fee);
     }
@@ -577,5 +593,27 @@ contract OpenMarketzAMM is ReentrancyGuard {
 
     function _revertIfMarketMissing(Market memory market) private pure {
         if (market.creator == address(0)) revert MarketNotFound();
+    }
+
+    function _safeTransfer(address to, uint256 amount) private {
+        if (amount == 0) return;
+
+        (bool success, bytes memory data) = address(collateralToken).call(
+            abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
+        );
+        if (!success || (data.length > 0 && !abi.decode(data, (bool)))) {
+            revert TransferFailed();
+        }
+    }
+
+    function _safeTransferFrom(address from, address to, uint256 amount) private {
+        if (amount == 0) return;
+
+        (bool success, bytes memory data) = address(collateralToken).call(
+            abi.encodeWithSelector(IERC20.transferFrom.selector, from, to, amount)
+        );
+        if (!success || (data.length > 0 && !abi.decode(data, (bool)))) {
+            revert TransferFromFailed();
+        }
     }
 }

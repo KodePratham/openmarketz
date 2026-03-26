@@ -7,7 +7,8 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network monadTestnet",
-    "deploy:amm:testnet": "hardhat run scripts/deploy-amm.ts --network monadTestnet"
+    "deploy:amm:testnet": "hardhat run scripts/deploy-amm.ts --network monadTestnet",
+    "deploy:amm:sepolia": "hardhat run scripts/deploy-amm.ts --network sepolia"
   },
   "keywords": [],
   "author": "",

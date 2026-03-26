@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const fallbackCode = marketHeaderText(marketParam);
   const snapshot = marketParam ? await getMarketSeoSnapshot(marketParam) : null;
 
-  const title = snapshot?.question || "Trade a prediction market on Monad";
+  const title = snapshot?.question || "Trade a prediction market on Sepolia";
   const code = snapshot?.openCode || fallbackCode;
   const yes = snapshot ? `${(snapshot.yesPriceBps / 100).toFixed(2)}%` : "--";
   const no = snapshot ? `${(snapshot.noPriceBps / 100).toFixed(2)}%` : "--";
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-          <div style={{ fontSize: 30, fontWeight: 600, opacity: 0.9 }}>OpenMarketz on Monad</div>
+          <div style={{ fontSize: 30, fontWeight: 600, opacity: 0.9 }}>OpenMarketz on Sepolia</div>
           <div style={{ fontSize: 38, fontWeight: 700, maxWidth: "95%" }}>{title}</div>
         </div>
 
