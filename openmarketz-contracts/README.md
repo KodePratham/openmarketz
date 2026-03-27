@@ -14,8 +14,10 @@ Fill `.env`:
 
 ```env
 MONAD_RPC_URL=https://testnet-rpc.monad.xyz
+SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 PRIVATE_KEY=your_testnet_private_key
 TREASURY_ADDRESS=
+COLLATERAL_TOKEN_ADDRESS=0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
 ```
 
 Notes:
@@ -46,6 +48,14 @@ npm run deploy:amm:testnet
 ```
 
 This runs `scripts/deploy-amm.ts` and deploys only `OpenMarketzAMM`.
+
+### Deploy V2 on Sepolia (USDC collateral)
+
+```bash
+npm run deploy:amm:sepolia
+```
+
+Defaults to Sepolia USDC if `COLLATERAL_TOKEN_ADDRESS` is not set.
 
 ### Deploy both (optional)
 

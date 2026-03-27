@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "OpenMarketz | Testnet Prediction Markets",
     short_name: "OpenMarketz",
-    description: "Trade and create prediction markets on Monad testnet.",
+    description: "Trade and create prediction markets on Sepolia with USDC collateral.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

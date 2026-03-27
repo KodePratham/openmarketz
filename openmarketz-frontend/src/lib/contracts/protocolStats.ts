@@ -1,11 +1,10 @@
 import { Interface, JsonRpcProvider, id } from "ethers";
-import { MONAD_RPC_URL, OPENMARKETZ_AMM_ADDRESS, openMarketzAmmAbi } from "@/lib/contracts/openmarketzAmm";
+import { APP_CHAIN_ID, APP_RPC_URL, OPENMARKETZ_AMM_ADDRESS, openMarketzAmmAbi } from "@/lib/contracts/openmarketzAmm";
 
 const DEFAULT_CHUNK_SIZE = 90;
 const MIN_CHUNK_SIZE = 10;
 const MAX_CHUNK_SIZE = 90;
 const DEFAULT_START_BLOCK = 0;
-const MONAD_CHAIN_ID = BigInt(10143);
 const RPC_TIMEOUT_MS = 8_000;
 const MAX_SCAN_RANGE_BLOCKS = 2_000_000;
 
@@ -85,12 +84,12 @@ export async function getProtocolStats(): Promise<ProtocolStats> {
       throw new Error("NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS is not set");
     }
 
-    const provider = new JsonRpcProvider(MONAD_RPC_URL);
+    const provider = new JsonRpcProvider(APP_RPC_URL);
     const abi = new Interface(openMarketzAmmAbi);
 
     const network = await withTimeout(provider.getNetwork(), RPC_TIMEOUT_MS, "RPC timeout while reading chain id");
-    if (network.chainId !== MONAD_CHAIN_ID) {
-      throw new Error(`Wrong chain from RPC (expected ${MONAD_CHAIN_ID.toString()}, got ${network.chainId.toString()})`);
+    if (network.chainId !== APP_CHAIN_ID) {
+      throw new Error(`Wrong chain from RPC (expected ${APP_CHAIN_ID.toString()}, got ${network.chainId.toString()})`);
     }
 
     const latestBlock = await withTimeout(provider.getBlockNumber(), RPC_TIMEOUT_MS, "RPC timeout while reading latest block");

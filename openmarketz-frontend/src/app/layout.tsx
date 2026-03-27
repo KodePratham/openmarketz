@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     default: "OpenMarketz | Testnet Prediction Markets",
     template: "%s | OpenMarketz",
   },
-  description: "Prediction markets on Monad",
+  description: "Prediction markets on Sepolia with USDC collateral",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   alternates: {
     canonical: "/",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
-  keywords: ["prediction markets", "Monad", "AMM", "OpenMarketz", "testnet"],
+  keywords: ["prediction markets", "Sepolia", "USDC", "AMM", "OpenMarketz", "testnet"],
   applicationName: "OpenMarketz",
   icons: {
     icon: "/Open-logo.png",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "OpenMarketz | Testnet Prediction Markets",
-    description: "Prediction markets on Monad",
+    description: "Prediction markets on Sepolia with USDC collateral",
     url: "/",
     siteName: "OpenMarketz",
     type: "website",
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "OpenMarketz | Testnet Prediction Markets",
-    description: "Prediction markets on Monad",
+    description: "Prediction markets on Sepolia with USDC collateral",
     creator: "@prathamkode",
     images: ["/OpenmarketzOnMonad.png"],
   },
@@ -77,7 +77,7 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${fraunces.variable} ${geistMono.variable} antialiased`}
       >
         <div className="border-b-2 border-black bg-[#7259ff] px-4 py-3 text-center text-sm font-semibold text-white">
-          We&apos;re a permissionless prediction markets platform operating on MONAD testnet. More updates are shipping quickly. If you want to contribute or help us get to mainnet, contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">@prathamkode</a>.
+          OpenMarketz is running on Sepolia for now while Monad testnet is being fixed. For support or feedback, contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">@prathamkode</a>.
         </div>
         {children}
         <Analytics />

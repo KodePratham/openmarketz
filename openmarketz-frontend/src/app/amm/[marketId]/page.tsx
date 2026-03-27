@@ -3,9 +3,16 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { formatEther, parseEther } from "ethers";
+import { formatUnits, parseUnits } from "ethers";
+import type { Signer } from "ethers";
 import { connectMetaMask } from "@/lib/wallet/metamask";
-import { getAmmReadContract, getAmmWriteContract } from "@/lib/contracts/openmarketzAmm";
+import {
+  COLLATERAL_DECIMALS,
+  OPENMARKETZ_AMM_ADDRESS,
+  getAmmReadContract,
+  getAmmWriteContract,
+  getCollateralWriteContract,
+} from "@/lib/contracts/openmarketzAmm";
 
 type MarketView = {
   id: bigint;
@@ -31,11 +38,11 @@ type PositionView = {
 
 const BIG_ZERO = BigInt(0);
 const BPS_DENOM = BigInt(10_000);
-const SHARE_SCALE = BigInt("1000000000000000000");
+const SHARE_SCALE = BigInt("1000000");
 const TRADE_FEE_BPS = BigInt(50);
 const WINNER_FEE_BPS = BigInt(200);
 const POLL_MS = 2500;
-const LOW_LIQUIDITY_THRESHOLD_WEI = parseEther("3");
+const LOW_LIQUIDITY_THRESHOLD_WEI = parseUnits("3", COLLATERAL_DECIMALS);
 
 type BuyQuoteBreakdown = {
   grossCost: bigint;
@@ -214,7 +221,7 @@ export default function AmmMarketPage() {
 
   function parseSharesToWei(): bigint | null {
     try {
-      const value = parseEther(sharesInput || "0");
+      const value = parseUnits(sharesInput || "0", COLLATERAL_DECIMALS);
       if (value <= BIG_ZERO) return null;
       return value;
     } catch {
@@ -224,12 +231,25 @@ export default function AmmMarketPage() {
 
   function parseLiquidityToWei(): bigint | null {
     try {
-      const value = parseEther(liquidityInput || "0");
+      const value = parseUnits(liquidityInput || "0", COLLATERAL_DECIMALS);
       if (value <= BIG_ZERO) return null;
       return value;
     } catch {
       return null;
     }
+  }
+
+  async function ensureCollateralAllowance(owner: string, signer: Signer, requiredAmount: bigint): Promise<void> {
+    if (!OPENMARKETZ_AMM_ADDRESS) {
+      throw new Error("NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS is not set");
+    }
+
+    const usdc = getCollateralWriteContract(signer);
+    const allowance = await usdc.allowance(owner, OPENMARKETZ_AMM_ADDRESS);
+    if (allowance >= requiredAmount) return;
+
+    const approveTx = await usdc.approve(OPENMARKETZ_AMM_ADDRESS, requiredAmount);
+    await approveTx.wait();
   }
 
   function quoteBuyBreakdown(sharesWei: bigint, yesSide: boolean): BuyQuoteBreakdown {
@@ -289,9 +309,10 @@ export default function AmmMarketPage() {
       const contract = getAmmWriteContract(signer);
 
       const totalCost = quoteBuyTotal(sharesWei, yesSide);
+      await ensureCollateralAllowance(wallet.address, signer, totalCost);
       const tx = yesSide
-        ? await contract.buyYes(resolvedMarketId, sharesWei, { value: totalCost })
-        : await contract.buyNo(resolvedMarketId, sharesWei, { value: totalCost });
+        ? await contract.buyYes(resolvedMarketId, sharesWei, totalCost)
+        : await contract.buyNo(resolvedMarketId, sharesWei, totalCost);
       await tx.wait();
 
       setStatusText(`Buy ${yesSide ? "YES" : "NO"} confirmed.`);
@@ -397,10 +418,11 @@ export default function AmmMarketPage() {
       const signer = await wallet.provider.getSigner();
       const contract = getAmmWriteContract(signer);
 
-      const tx = await contract.addLiquidity(resolvedMarketId, { value: amountWei });
+      await ensureCollateralAllowance(wallet.address, signer, amountWei);
+      const tx = await contract.addLiquidity(resolvedMarketId, amountWei);
       await tx.wait();
 
-      setStatusText(`Liquidity top-up confirmed (+${liquidityInput} MON).`);
+      setStatusText(`Liquidity top-up confirmed (+${liquidityInput} USDC).`);
       setLiquidityInput("1");
       await loadMarket();
     } catch (error) {
@@ -489,13 +511,13 @@ export default function AmmMarketPage() {
           </div>
 
           <p><strong>Status:</strong> {market.status === 0 ? "OPEN" : market.status === 1 ? "RESOLVED" : "CANCELED"}</p>
-          <p><strong>YES supply:</strong> {formatEther(market.yesSharesSupply)} shares</p>
-          <p><strong>NO supply:</strong> {formatEther(market.noSharesSupply)} shares</p>
-          <p><strong>Collateral pool:</strong> {formatEther(market.collateralPool)} MON</p>
+          <p><strong>YES supply:</strong> {formatUnits(market.yesSharesSupply, COLLATERAL_DECIMALS)} shares</p>
+          <p><strong>NO supply:</strong> {formatUnits(market.noSharesSupply, COLLATERAL_DECIMALS)} shares</p>
+          <p><strong>Collateral pool:</strong> {formatUnits(market.collateralPool, COLLATERAL_DECIMALS)} USDC</p>
 
           {isLowLiquidity ? (
             <div className="gum-note p-3 text-sm">
-              <p><strong>Low liquidity warning:</strong> Pool is below 3 MON.</p>
+              <p><strong>Low liquidity warning:</strong> Pool is below 3 USDC.</p>
               <p>{isCreator ? "Top up liquidity to keep trading depth healthy." : "Creator may add more liquidity to improve trade depth."}</p>
             </div>
           ) : null}
@@ -512,7 +534,7 @@ export default function AmmMarketPage() {
                   value={liquidityInput}
                   onChange={(e) => setLiquidityInput(e.target.value)}
                   className="field w-full px-3 py-2"
-                  placeholder="Amount in MON"
+                  placeholder="Amount in USDC"
                 />
                 <button
                   type="button"
@@ -528,9 +550,9 @@ export default function AmmMarketPage() {
 
           {position ? (
             <div className="gum-note p-3 text-sm">
-              <p><strong>Your YES shares:</strong> {formatEther(position.yesShares)}</p>
-              <p><strong>Your NO shares:</strong> {formatEther(position.noShares)}</p>
-              <p><strong>Your net cash deposited:</strong> {formatEther(position.netCashDeposited)} MON</p>
+              <p><strong>Your YES shares:</strong> {formatUnits(position.yesShares, COLLATERAL_DECIMALS)}</p>
+              <p><strong>Your NO shares:</strong> {formatUnits(position.noShares, COLLATERAL_DECIMALS)}</p>
+              <p><strong>Your net cash deposited:</strong> {formatUnits(position.netCashDeposited, COLLATERAL_DECIMALS)} USDC</p>
             </div>
           ) : null}
 
@@ -545,7 +567,7 @@ export default function AmmMarketPage() {
               className="field w-full px-3 py-2"
             />
             <p className="text-sm">
-              Estimated buy cost: YES {formatEther(estimatedYesCost)} MON, NO {formatEther(estimatedNoCost)} MON
+              Estimated buy cost: YES {formatUnits(estimatedYesCost, COLLATERAL_DECIMALS)} USDC, NO {formatUnits(estimatedNoCost, COLLATERAL_DECIMALS)} USDC
             </p>
 
             <div className="gum-note space-y-2 p-3 text-sm">
@@ -570,7 +592,7 @@ export default function AmmMarketPage() {
               {selectedWinningEstimate ? (
                 <>
                   <p>
-                    Estimated net profit: <strong>{selectedWinningEstimate.isProfit ? "+" : "-"}{formatEther(selectedWinningEstimate.netProfitAbs)} MON</strong>
+                    Estimated net profit: <strong>{selectedWinningEstimate.isProfit ? "+" : "-"}{formatUnits(selectedWinningEstimate.netProfitAbs, COLLATERAL_DECIMALS)} USDC</strong>
                   </p>
                   <p className="text-xs">
                     Estimate uses current pool/supply and your post-buy position. Final payout can change as others trade before resolution.

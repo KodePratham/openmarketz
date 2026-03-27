@@ -6,8 +6,11 @@
     "clean": "hardhat clean",
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "test:amm:localnet": "hardhat test test/localnet/OpenMarketzAMM.localnet.test.ts --network localhost",
+    "test:amm:localnet:high-deposit": "hardhat test test/localnet/OpenMarketzAMM.localnet.high-deposit.test.ts --network localhost",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network monadTestnet",
-    "deploy:amm:testnet": "hardhat run scripts/deploy-amm.ts --network monadTestnet"
+    "deploy:amm:testnet": "hardhat run scripts/deploy-amm.ts --network monadTestnet",
+    "deploy:amm:sepolia": "hardhat run scripts/deploy-amm.ts --network sepolia"
   },
   "keywords": [],
   "author": "",

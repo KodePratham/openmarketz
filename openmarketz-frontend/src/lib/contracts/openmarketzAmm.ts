@@ -1,14 +1,24 @@
 import { Contract, JsonRpcProvider, Signer } from "ethers";
 
-export const MONAD_RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC_URL || "https://testnet-rpc.monad.xyz";
+export const APP_RPC_URL =
+  process.env.NEXT_PUBLIC_RPC_URL ||
+  process.env.NEXT_PUBLIC_MONAD_RPC_URL ||
+  "https://ethereum-sepolia-rpc.publicnode.com";
+export const APP_CHAIN_ID = BigInt(process.env.NEXT_PUBLIC_CHAIN_ID || "11155111");
 export const OPENMARKETZ_AMM_ADDRESS = process.env.NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS || "";
+export const USDC_TOKEN_ADDRESS =
+  process.env.NEXT_PUBLIC_USDC_ADDRESS ||
+  process.env.NEXT_PUBLIC_COLLATERAL_TOKEN_ADDRESS ||
+  "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+export const COLLATERAL_DECIMALS = 6;
 
 export const openMarketzAmmAbi = [
   "function nextMarketId() view returns (uint256)",
-  "function createMarket(string question, string description, uint64 closeTime) payable returns (uint256 marketId)",
-  "function addLiquidity(uint256 marketId) payable returns (uint256 mintedShares)",
-  "function buyYes(uint256 marketId, uint256 shares) payable returns (uint256 grossCost, uint256 fee)",
-  "function buyNo(uint256 marketId, uint256 shares) payable returns (uint256 grossCost, uint256 fee)",
+  "function collateralToken() view returns (address)",
+  "function createMarket(string question, string description, uint64 closeTime, uint256 seedCollateral) returns (uint256 marketId)",
+  "function addLiquidity(uint256 marketId, uint256 amount) returns (uint256 mintedShares)",
+  "function buyYes(uint256 marketId, uint256 shares, uint256 maxCost) returns (uint256 grossCost, uint256 fee)",
+  "function buyNo(uint256 marketId, uint256 shares, uint256 maxCost) returns (uint256 grossCost, uint256 fee)",
   "function sellYes(uint256 marketId, uint256 shares) returns (uint256 grossProceeds, uint256 fee)",
   "function sellNo(uint256 marketId, uint256 shares) returns (uint256 grossProceeds, uint256 fee)",
   "function resolveMarket(uint256 marketId, bool outcomeYes)",
@@ -30,12 +40,18 @@ export const openMarketzAmmAbi = [
   "event WinnerRedeemed(uint256 indexed marketId, address indexed trader, uint256 grossPayout, uint256 winnerFee, uint256 netPayout)",
 ] as const;
 
+export const erc20Abi = [
+  "function balanceOf(address account) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+] as const;
+
 export function getAmmReadContract() {
   if (!OPENMARKETZ_AMM_ADDRESS) {
     throw new Error("NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS is not set");
   }
 
-  const provider = new JsonRpcProvider(MONAD_RPC_URL);
+  const provider = new JsonRpcProvider(APP_RPC_URL);
   return new Contract(OPENMARKETZ_AMM_ADDRESS, openMarketzAmmAbi, provider);
 }
 
@@ -45,4 +61,8 @@ export function getAmmWriteContract(signer: Signer) {
   }
 
   return new Contract(OPENMARKETZ_AMM_ADDRESS, openMarketzAmmAbi, signer);
+}
+
+export function getCollateralWriteContract(signer: Signer) {
+  return new Contract(USDC_TOKEN_ADDRESS, erc20Abi, signer);
 }

@@ -1,5 +1,5 @@
 import { Interface, JsonRpcProvider, id } from "ethers";
-import { MONAD_RPC_URL, OPENMARKETZ_AMM_ADDRESS, openMarketzAmmAbi } from "@/lib/contracts/openmarketzAmm";
+import { APP_RPC_URL, OPENMARKETZ_AMM_ADDRESS, openMarketzAmmAbi } from "@/lib/contracts/openmarketzAmm";
 
 const DEFAULT_CHUNK_SIZE = 90;
 const MIN_CHUNK_SIZE = 10;
@@ -80,7 +80,7 @@ export async function discoverMarkets(): Promise<DiscoveredMarketsSnapshot> {
     throw new Error("NEXT_PUBLIC_OPENMARKETZ_AMM_ADDRESS is not set");
   }
 
-  const provider = new JsonRpcProvider(MONAD_RPC_URL);
+  const provider = new JsonRpcProvider(APP_RPC_URL);
   const abi = new Interface(openMarketzAmmAbi);
   const latestBlock = await provider.getBlockNumber();
   const startBlock = parseStartBlock();

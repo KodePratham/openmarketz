@@ -5,6 +5,7 @@ import "@nomicfoundation/hardhat-toolbox";
 dotenvConfig();
 
 const MONAD_RPC_URL = process.env.MONAD_RPC_URL || "https://testnet-rpc.monad.xyz";
+const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 const accounts = PRIVATE_KEY ? [PRIVATE_KEY] : [];
@@ -23,6 +24,11 @@ const config: HardhatUserConfig = {
     monadTestnet: {
       url: MONAD_RPC_URL,
       chainId: 10143,
+      accounts,
+    },
+    sepolia: {
+      url: SEPOLIA_RPC_URL,
+      chainId: 11155111,
       accounts,
     },
   },

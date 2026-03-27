@@ -239,3 +239,61 @@ body {
 .brand-progress-no {
   background: #ffffff;
 }
+
+.report-markdown {
+  color: #000000;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.report-markdown h1,
+.report-markdown h2,
+.report-markdown h3 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.report-markdown h1 {
+  font-size: 1.8rem;
+}
+
+.report-markdown h2 {
+  font-size: 1.35rem;
+}
+
+.report-markdown p {
+  margin: 0.35rem 0;
+}
+
+.report-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1rem;
+  font-size: 0.85rem;
+}
+
+.report-markdown th,
+.report-markdown td {
+  border: 2px solid #000000;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.report-markdown th {
+  background: #ffd700;
+  font-weight: 800;
+}
+
+.report-markdown tr:nth-child(even) td {
+  background: #f0ebff;
+}
+
+.report-markdown code {
+  border: 1px solid #000000;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-geist-mono), Consolas, monospace;
+}

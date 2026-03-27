@@ -5,7 +5,7 @@ export default function Home() {
       <header className="shell-card gum-hero p-6 sm:p-10">
         <p className="gum-kicker">OpenMarketz</p>
         <h1 className="font-display mt-3 text-4xl font-black leading-tight sm:text-6xl">You are the oracle</h1>
-        <p className="text-muted mt-4 max-w-2xl text-base">Trade and create crisp prediction markets on Monad with one code, one market, one truth source.</p>
+        <p className="text-muted mt-4 max-w-2xl text-base">Trade and create crisp prediction markets on Sepolia with USDC collateral and one OPEN code per market.</p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/create" className="cta-button px-5 py-2.5 text-sm">Create Market</Link>
           <Link href="/open" className="ghost-button px-5 py-2.5 text-sm">Open by Code</Link>
@@ -50,6 +50,15 @@ export default function Home() {
         <h2 className="font-display text-2xl font-black">Legal</h2>
         <p className="text-muted mt-2 text-sm">Review our terms, including testnet and open-source disclosures.</p>
         <Link href="/terms" className="ghost-button mt-4 inline-flex px-4 py-2 text-sm">Terms &amp; Conditions</Link>
+      </section>
+
+      <section className="shell-card gum-panel p-5 sm:p-6">
+        <h2 className="font-display text-2xl font-black">Test Runs</h2>
+        <p className="text-muted mt-2 text-sm">Browse rendered localnet simulation reports, including transaction logs, investor outcomes, and protocol earnings.</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link href="/test-runs" className="cta-button inline-flex px-4 py-2 text-sm">View Test Reports</Link>
+          <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="ghost-button inline-flex px-4 py-2 text-sm">Contact Support</a>
+        </div>
       </section>
     </main>
   );

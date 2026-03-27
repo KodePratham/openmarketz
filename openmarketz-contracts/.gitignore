@@ -16,6 +16,7 @@ typechain/
 ## TypeScript / Build
 dist/
 coverage/
+test-runs/
 
 ## Logs
 npm-debug.log*
