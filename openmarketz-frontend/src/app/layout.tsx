@@ -77,7 +77,7 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${fraunces.variable} ${geistMono.variable} antialiased`}
       >
         <div className="border-b-2 border-black bg-[#7259ff] px-4 py-3 text-center text-sm font-semibold text-white">
-          We&apos;re a permissionless prediction markets platform operating on Sepolia with USDC collateral. More updates are shipping quickly. If you want to contribute or help us get to mainnet, contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">@prathamkode</a>.
+          OpenMarketz is running on Sepolia for now while Monad testnet is being fixed. For support or feedback, contact <a href="https://twitter.com/prathamkode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">@prathamkode</a>.
         </div>
         {children}
         <Analytics />
