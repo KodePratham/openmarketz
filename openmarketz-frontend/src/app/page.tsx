@@ -10,8 +10,31 @@ export default function Home() {
           <Link href="/create" className="cta-button px-5 py-2.5 text-sm">Create Market</Link>
           <Link href="/open" className="ghost-button px-5 py-2.5 text-sm">Open by Code</Link>
           <Link href="/my-markets" className="ghost-button px-5 py-2.5 text-sm">My Markets</Link>
+          <a
+            href="https://github.com/KodePratham/openmarketz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ghost-button px-5 py-2.5 text-sm"
+          >
+            Open Source Repo
+          </a>
         </div>
       </header>
+
+      <section className="shell-card gum-panel p-5 sm:p-6">
+        <h2 className="font-display text-2xl font-black">Before You Start</h2>
+        <p className="text-muted mt-2 text-sm">Read these alerts first to avoid wallet and network errors during market creation or trading.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <article className="border-3 rounded-[10px] border-black bg-[#ffd700] p-4 font-semibold text-black">
+            <p className="gum-kicker">Alert 1</p>
+            <p className="mt-1 text-sm">MetaMask is required. Install the extension first and keep one account unlocked in your browser before using OpenMarketz.</p>
+          </article>
+          <article className="border-3 rounded-[10px] border-black bg-[#00d4ff] p-4 font-semibold text-black">
+            <p className="gum-kicker">Alert 2</p>
+            <p className="mt-1 text-sm">Switch MetaMask to Ethereum Sepolia and keep testnet ETH + test USDC ready for gas, market creation, and trades.</p>
+          </article>
+        </div>
+      </section>
 
       <section className="shell-card gum-panel p-4 sm:p-6">
         <div className="grid gap-3 sm:grid-cols-3">
